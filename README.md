@@ -7,6 +7,7 @@ A production-ready Node.js reverse proxy that solves SEO problems for Single Pag
 - **Bot Detection**: Automatically detects search engine crawlers and social media bots using `isbot`
 - **Server-Side Rendering**: Renders SPA pages with Puppeteer for bot traffic
 - **Transparent Proxying**: Human users are proxied directly to your SPA without any delay
+- **Flexible Cache Rules**: Pattern-based caching with URL regex support and SPA meta tag control
 - **Smart Caching**: In-memory caching with configurable TTL to minimize rendering overhead
 - **Performance Optimized**: Blocks unnecessary resources (images, fonts, stylesheets) during rendering
 - **Production Ready**: Includes health checks, graceful shutdown, and comprehensive error handling
@@ -127,6 +128,9 @@ services:
       - CACHE_TTL=3600
       - PUPPETEER_TIMEOUT=30000
       - NODE_ENV=production
+      # Cache rules (optional)
+      - NO_CACHE_PATTERNS=/checkout,/cart,/admin/*,/api/*
+      - CACHE_BY_DEFAULT=true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
@@ -145,6 +149,8 @@ docker-compose up -d
 
 All configuration is done via environment variables:
 
+### Basic Configuration
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `TARGET_URL` | ✅ Yes | - | URL of your SPA (e.g., `https://my-app.com`) |
@@ -152,6 +158,152 @@ All configuration is done via environment variables:
 | `CACHE_TTL` | No | `3600` | Cache time-to-live in seconds (1 hour) |
 | `PUPPETEER_TIMEOUT` | No | `30000` | Maximum rendering time in milliseconds |
 | `NODE_ENV` | No | `production` | Environment mode |
+
+### Cache Rules Configuration
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NO_CACHE_PATTERNS` | No | `''` | Comma-separated URL patterns to NEVER cache (see below) |
+| `CACHE_PATTERNS` | No | `''` | Comma-separated URL patterns to cache (whitelist mode) |
+| `CACHE_BY_DEFAULT` | No | `true` | Cache everything by default when no pattern matches |
+| `CACHE_META_TAG` | No | `x-seo-shield-cache` | Meta tag name for dynamic cache control |
+
+## Cache Rules
+
+The proxy supports flexible caching strategies to handle different types of pages. You can control caching through:
+
+### 1. URL Pattern Matching
+
+#### NO_CACHE_PATTERNS
+URLs matching these patterns will **NEVER** be cached or rendered. They will be proxied directly to your SPA, even for bots. Perfect for:
+- Checkout/payment pages: `/checkout`, `/cart`, `/payment/*`
+- Admin panels: `/admin/*`, `/dashboard/*`
+- API endpoints: `/api/*`
+- User-specific pages: `/user/*/settings`, `/profile/edit`
+
+**Examples:**
+```bash
+# Literal paths
+NO_CACHE_PATTERNS=/checkout,/cart,/login
+
+# Wildcards (*)
+NO_CACHE_PATTERNS=/admin/*,/api/*,/user/*/settings
+
+# Regex (wrap in /.../)
+NO_CACHE_PATTERNS=/\/blog\/[0-9]+\/edit/,/\/admin\/.*/
+```
+
+#### CACHE_PATTERNS
+If specified, **ONLY** these URL patterns will be cached (whitelist mode). Useful for:
+- Blog posts: `/blog/*`, `/posts/*`
+- Product pages: `/products/*`, `/category/*`
+- Static pages: `/about`, `/contact`, `/help`
+
+**Examples:**
+```bash
+# Cache only blog and product pages
+CACHE_PATTERNS=/blog/*,/products/*,/category/*
+
+# Cache specific static pages
+CACHE_PATTERNS=/about,/contact,/privacy,/terms
+```
+
+#### CACHE_BY_DEFAULT
+Controls behavior when URL doesn't match any pattern:
+- `true` (default): Cache everything except NO_CACHE_PATTERNS
+- `false`: Cache nothing except CACHE_PATTERNS
+
+**Use cases:**
+```bash
+# Content site - cache everything except admin
+CACHE_BY_DEFAULT=true
+NO_CACHE_PATTERNS=/admin/*,/api/*
+
+# E-commerce - cache only product pages
+CACHE_BY_DEFAULT=false
+CACHE_PATTERNS=/products/*,/category/*
+NO_CACHE_PATTERNS=/checkout,/cart
+```
+
+### 2. Meta Tag Control (Dynamic)
+
+Your SPA can dynamically control caching by adding a meta tag:
+
+```html
+<!-- Prevent caching for this specific page -->
+<meta name="x-seo-shield-cache" content="false">
+
+<!-- Explicitly allow caching (default behavior) -->
+<meta name="x-seo-shield-cache" content="true">
+```
+
+**Perfect for:**
+- User-specific content that varies by session
+- Pages with real-time data
+- A/B testing scenarios
+- Personalized recommendations
+
+**React Example:**
+```jsx
+function UserDashboard() {
+  return (
+    <Helmet>
+      <meta name="x-seo-shield-cache" content="false" />
+    </Helmet>
+  );
+}
+```
+
+**Vue Example:**
+```vue
+<template>
+  <div>
+    <vue-meta>
+      <meta name="x-seo-shield-cache" content="false" />
+    </vue-meta>
+  </div>
+</template>
+```
+
+### 3. Priority Order
+
+The cache decision follows this priority:
+
+1. **NO_CACHE_PATTERNS** (highest priority)
+   - If URL matches → Proxy directly, no SSR
+2. **Meta Tag Check** (after rendering)
+   - If `<meta name="x-seo-shield-cache" content="false">` → Don't cache
+3. **CACHE_PATTERNS** (if defined)
+   - If URL matches → Cache
+   - If URL doesn't match → Use CACHE_BY_DEFAULT
+4. **CACHE_BY_DEFAULT** (lowest priority)
+   - If true → Cache
+   - If false → Don't cache
+
+### 4. Real-World Examples
+
+#### E-commerce Site
+```bash
+TARGET_URL=https://myshop.com
+NO_CACHE_PATTERNS=/checkout,/cart,/payment/*,/account/*,/api/*
+CACHE_PATTERNS=/products/*,/category/*,/blog/*
+CACHE_BY_DEFAULT=false
+```
+
+#### Blog/Content Site
+```bash
+TARGET_URL=https://myblog.com
+NO_CACHE_PATTERNS=/admin/*,/wp-admin/*,/api/*
+CACHE_BY_DEFAULT=true
+```
+
+#### SaaS Application
+```bash
+TARGET_URL=https://myapp.com
+NO_CACHE_PATTERNS=/app/*,/dashboard/*,/api/*,/auth/*
+CACHE_PATTERNS=/,/pricing,/features,/about,/blog/*
+CACHE_BY_DEFAULT=false
+```
 
 ## API Endpoints
 
@@ -197,6 +349,7 @@ seo-shield-proxy/
 ├── src/
 │   ├── config.js      # Configuration management
 │   ├── cache.js       # In-memory caching layer
+│   ├── cache-rules.js # Flexible URL pattern matching
 │   ├── browser.js     # Puppeteer singleton manager
 │   └── server.js      # Express server & middleware
 ├── Dockerfile         # Production container
@@ -210,8 +363,9 @@ seo-shield-proxy/
 
 1. **config.js**: Loads and validates environment variables
 2. **cache.js**: Manages in-memory cache with TTL using `node-cache`
-3. **browser.js**: Singleton Puppeteer browser manager with resource blocking
-4. **server.js**: Express application with bot detection and routing logic
+3. **cache-rules.js**: Implements flexible caching logic with URL patterns and meta tag detection
+4. **browser.js**: Singleton Puppeteer browser manager with resource blocking
+5. **server.js**: Express application with bot detection and routing logic
 
 ## Performance Optimizations
 

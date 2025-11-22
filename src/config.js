@@ -23,6 +23,32 @@ const config = {
 
   // Node environment
   NODE_ENV: process.env.NODE_ENV || 'production',
+
+  // ============================================
+  // CACHE RULES CONFIGURATION
+  // ============================================
+
+  // URLs that should NEVER be cached or rendered (comma-separated patterns)
+  // These will be proxied directly without any SSR
+  // Examples: /checkout,/cart,/admin/*,/api/*
+  // Supports wildcards (*) and regex (wrap in /.../)
+  NO_CACHE_PATTERNS: process.env.NO_CACHE_PATTERNS || '',
+
+  // URLs that SHOULD be cached (comma-separated patterns)
+  // If specified, ONLY these patterns will be cached
+  // Examples: /blog/*,/products/*,/category/*
+  // Leave empty to use CACHE_BY_DEFAULT behavior
+  CACHE_PATTERNS: process.env.CACHE_PATTERNS || '',
+
+  // Default caching behavior when URL doesn't match any pattern
+  // 'true' = cache everything by default (recommended for content sites)
+  // 'false' = cache nothing by default, only explicit CACHE_PATTERNS
+  CACHE_BY_DEFAULT: process.env.CACHE_BY_DEFAULT || 'true',
+
+  // Meta tag name that SPA can use to control caching
+  // SPA can add: <meta name="x-seo-shield-cache" content="false">
+  // to prevent caching of specific pages dynamically
+  CACHE_META_TAG: process.env.CACHE_META_TAG || 'x-seo-shield-cache',
 };
 
 // Validate required configuration
@@ -46,5 +72,12 @@ console.log(`   TARGET_URL: ${config.TARGET_URL}`);
 console.log(`   CACHE_TTL: ${config.CACHE_TTL}s`);
 console.log(`   PUPPETEER_TIMEOUT: ${config.PUPPETEER_TIMEOUT}ms`);
 console.log(`   NODE_ENV: ${config.NODE_ENV}`);
+console.log(`   CACHE_BY_DEFAULT: ${config.CACHE_BY_DEFAULT}`);
+if (config.NO_CACHE_PATTERNS) {
+  console.log(`   NO_CACHE_PATTERNS: ${config.NO_CACHE_PATTERNS}`);
+}
+if (config.CACHE_PATTERNS) {
+  console.log(`   CACHE_PATTERNS: ${config.CACHE_PATTERNS}`);
+}
 
 export default config;
