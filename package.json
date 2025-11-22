@@ -1,0 +1,32 @@
+{
+  "name": "seo-shield-proxy",
+  "version": "1.0.0",
+  "description": "Production-ready SEO reverse proxy for SPAs using Puppeteer and Express",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "keywords": [
+    "seo",
+    "reverse-proxy",
+    "puppeteer",
+    "ssr",
+    "spa",
+    "bot-detection"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "http-proxy-middleware": "^3.0.0",
+    "isbot": "^5.1.0",
+    "node-cache": "^5.1.2",
+    "puppeteer": "^23.11.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
