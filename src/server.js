@@ -4,8 +4,12 @@ import { isbot } from 'isbot';
 import config from './config.js';
 import cache from './cache.js';
 import browserManager from './browser.js';
+import CacheRules from './cache-rules.js';
 
 const app = express();
+
+// Initialize cache rules
+const cacheRules = new CacheRules(config);
 
 /**
  * Static asset extensions that should always be proxied
@@ -90,19 +94,34 @@ app.use(async (req, res, next) => {
     return proxyMiddleware(req, res, next);
   }
 
-  // 3. BOT DETECTED - SSR Flow
+  // 3. BOT DETECTED - Check cache rules
   console.log(`🤖 Bot detected: ${userAgent.substring(0, 80)}`);
 
+  // Check if this URL should be rendered based on patterns
+  const urlDecision = cacheRules.shouldCacheUrl(req.url);
+  console.log(`📋 Cache decision for ${requestPath}: ${urlDecision.reason}`);
+
+  // If URL pattern says don't render (e.g., NO_CACHE pattern), proxy directly
+  if (!urlDecision.shouldRender) {
+    console.log(`⏩ Skipping SSR based on rules - Proxying to ${config.TARGET_URL}`);
+    return proxyMiddleware(req, res, next);
+  }
+
   try {
-    // Check cache first
+    // Check cache first (if URL pattern allows caching)
     const cacheKey = req.url;
-    const cachedHtml = cache.get(cacheKey);
+    let cachedHtml = null;
+
+    if (urlDecision.shouldCache) {
+      cachedHtml = cache.get(cacheKey);
+    }
 
     if (cachedHtml) {
       console.log(`🚀 Serving cached HTML for: ${requestPath}`);
       res.set('Content-Type', 'text/html; charset=utf-8');
       res.set('X-Rendered-By', 'SEO-Shield-Proxy');
       res.set('X-Cache-Status', 'HIT');
+      res.set('X-Cache-Rule', urlDecision.reason);
       return res.send(cachedHtml);
     }
 
@@ -111,13 +130,23 @@ app.use(async (req, res, next) => {
 
     const html = await browserManager.render(fullUrl);
 
-    // Store in cache
-    cache.set(cacheKey, html);
+    // Check for meta tag override in rendered HTML
+    const finalDecision = cacheRules.getCacheDecision(req.url, html);
+
+    // Store in cache if allowed by both URL pattern and meta tag
+    if (finalDecision.shouldCache) {
+      cache.set(cacheKey, html);
+      console.log(`💾 HTML cached for: ${requestPath}`);
+    } else {
+      console.log(`⚠️  HTML NOT cached: ${finalDecision.reason}`);
+    }
 
     // Send response
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.set('X-Rendered-By', 'SEO-Shield-Proxy');
     res.set('X-Cache-Status', 'MISS');
+    res.set('X-Cache-Rule', finalDecision.reason);
+    res.set('X-Cache-Allowed', finalDecision.shouldCache ? 'true' : 'false');
     res.send(html);
   } catch (error) {
     // If rendering fails, fallback to proxying
@@ -147,6 +176,7 @@ app.get('/health', (req, res) => {
       misses: stats.misses,
       hitRate: stats.hits / (stats.hits + stats.misses) || 0,
     },
+    cacheRules: cacheRules.getRulesSummary(),
     config: {
       targetUrl: config.TARGET_URL,
       cacheTtl: config.CACHE_TTL,
