@@ -49,6 +49,7 @@ See [START.md](START.md) for detailed manual setup.
 - Smart caching with TTL
 - Pattern-based cache rules
 - Meta tag cache control
+- **Debug mode** - Preview bot-rendered HTML with `?_render=debug`
 
 ### 📊 Admin Dashboard
 - Real-time WebSocket updates
@@ -74,6 +75,9 @@ curl -A "Googlebot" http://localhost:8080/
 
 # Human request (gets proxied)
 curl http://localhost:8080/
+
+# Debug mode (preview bot HTML as human)
+curl http://localhost:8080/?_render=debug
 
 # View in browser
 open http://localhost:8080/admin
@@ -108,6 +112,9 @@ See [.env.example](.env.example) for all options.
 
 - [START.md](START.md) - Complete setup guide
 - [.env.example](.env.example) - Configuration reference
+- [docs/debug-mode.md](docs/debug-mode.md) - Debug mode & render preview guide
+- [docs/concurrency-control.md](docs/concurrency-control.md) - Queue management & performance
+- [docs/redis-cache.md](docs/redis-cache.md) - Redis cache integration
 
 ## 📝 License
 

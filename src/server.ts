@@ -94,9 +94,14 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     return proxyMiddleware(req, res, next);
   }
 
-  // 2. Human users - proxy directly
+  // 2. Check for render preview parameter
+  const renderParam = req.query['_render'] as string;
+  const isRenderPreview = renderParam === 'true' || renderParam === 'debug';
+  const isDebugMode = renderParam === 'debug';
+
+  // 3. Human users (without preview) - proxy directly
   const isBotRequest = isbot(userAgent);
-  if (!isBotRequest) {
+  if (!isBotRequest && !isRenderPreview) {
     console.log(`👤 Human user detected - Proxying to ${config.TARGET_URL}`);
     metricsCollector.recordRequest({
       path: requestPath,
@@ -108,8 +113,12 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     return proxyMiddleware(req, res, next);
   }
 
-  // 3. Bot detected - check cache rules
-  console.log(`🤖 Bot detected: ${userAgent.substring(0, 80)}`);
+  // 4. Bot detected or render preview requested
+  if (isRenderPreview) {
+    console.log(`🔍 Render preview requested (debug: ${isDebugMode})`);
+  } else {
+    console.log(`🤖 Bot detected: ${userAgent.substring(0, 80)}`);
+  }
 
   const urlDecision = cacheRules.shouldCacheUrl(req.url);
   console.log(`📋 Cache decision for ${requestPath}: ${urlDecision.reason}`);
@@ -128,6 +137,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   }
 
   try {
+    const startTime = Date.now();
     const cacheKey = req.url;
     let cacheEntry;
 
@@ -144,7 +154,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
         metricsCollector.recordRequest({
           path: requestPath,
           userAgent,
-          isBot: true,
+          isBot: !isRenderPreview,
           action: 'ssr',
           cacheStatus: 'STALE',
           rule: urlDecision.reason,
@@ -173,7 +183,42 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
         res.set('X-Cache-Status', 'STALE');
         res.set('X-Cache-Rule', urlDecision.reason);
         res.set('X-SWR', 'true');
-        return res.send(cacheEntry.value);
+
+        if (isRenderPreview) {
+          res.set('X-Render-Preview', 'true');
+        }
+
+        let responseHtml = cacheEntry.value;
+
+        // Add debug metadata for ?_render=debug
+        if (isDebugMode) {
+          const queueMetrics = browserManager.getMetrics();
+          const debugInfo = {
+            timestamp: new Date().toISOString(),
+            requestPath,
+            cacheStatus: 'STALE',
+            cacheRule: urlDecision.reason,
+            swr: true,
+            backgroundRevalidation: true,
+            responseTime: Date.now() - startTime,
+            queueMetrics: {
+              queued: queueMetrics.queued,
+              processing: queueMetrics.processing,
+              completed: queueMetrics.completed,
+              errors: queueMetrics.errors,
+              maxConcurrency: queueMetrics.maxConcurrency,
+            },
+          };
+
+          res.set('X-Debug-Mode', 'true');
+          res.set('X-Debug-Info', JSON.stringify(debugInfo));
+
+          // Inject debug info as HTML comment
+          const debugComment = `\n<!-- SEO Shield Proxy Debug Info\n${JSON.stringify(debugInfo, null, 2)}\n-->\n`;
+          responseHtml = debugComment + responseHtml;
+        }
+
+        return res.send(responseHtml);
       }
 
       // Fresh cache hit
@@ -181,7 +226,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
       metricsCollector.recordRequest({
         path: requestPath,
         userAgent,
-        isBot: true,
+        isBot: !isRenderPreview,
         action: 'ssr',
         cacheStatus: 'HIT',
         rule: urlDecision.reason,
@@ -191,12 +236,48 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
       res.set('X-Cache-Status', 'HIT');
       res.set('X-Cache-Rule', urlDecision.reason);
       res.set('X-Cache-TTL', Math.floor(cacheEntry.ttl).toString());
-      return res.send(cacheEntry.value);
+
+      if (isRenderPreview) {
+        res.set('X-Render-Preview', 'true');
+      }
+
+      let responseHtml = cacheEntry.value;
+
+      // Add debug metadata for ?_render=debug
+      if (isDebugMode) {
+        const queueMetrics = browserManager.getMetrics();
+        const debugInfo = {
+          timestamp: new Date().toISOString(),
+          requestPath,
+          cacheStatus: 'HIT',
+          cacheRule: urlDecision.reason,
+          cacheTTL: Math.floor(cacheEntry.ttl),
+          responseTime: Date.now() - startTime,
+          queueMetrics: {
+            queued: queueMetrics.queued,
+            processing: queueMetrics.processing,
+            completed: queueMetrics.completed,
+            errors: queueMetrics.errors,
+            maxConcurrency: queueMetrics.maxConcurrency,
+          },
+        };
+
+        res.set('X-Debug-Mode', 'true');
+        res.set('X-Debug-Info', JSON.stringify(debugInfo));
+
+        // Inject debug info as HTML comment
+        const debugComment = `\n<!-- SEO Shield Proxy Debug Info\n${JSON.stringify(debugInfo, null, 2)}\n-->\n`;
+        responseHtml = debugComment + responseHtml;
+      }
+
+      return res.send(responseHtml);
     }
 
     // Render with Puppeteer
     console.log(`🎨 Rendering with Puppeteer: ${fullUrl}`);
+    const renderStartTime = Date.now();
     const renderResult = await browserManager.render(fullUrl);
+    const renderTime = Date.now() - renderStartTime;
     const { html, statusCode } = renderResult;
 
     const finalDecision = cacheRules.getCacheDecision(req.url, html);
@@ -211,7 +292,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     metricsCollector.recordRequest({
       path: requestPath,
       userAgent,
-      isBot: true,
+      isBot: !isRenderPreview,
       action: 'ssr',
       cacheStatus: 'MISS',
       rule: finalDecision.reason,
@@ -230,7 +311,44 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     if (statusCode) {
       res.set('X-Prerender-Status-Code', statusCode.toString());
     }
-    res.send(html);
+
+    if (isRenderPreview) {
+      res.set('X-Render-Preview', 'true');
+    }
+
+    let responseHtml = html;
+
+    // Add debug metadata for ?_render=debug
+    if (isDebugMode) {
+      const queueMetrics = browserManager.getMetrics();
+      const debugInfo = {
+        timestamp: new Date().toISOString(),
+        requestPath,
+        cacheStatus: 'MISS',
+        cacheRule: finalDecision.reason,
+        cacheAllowed: finalDecision.shouldCache,
+        httpStatus,
+        renderTime,
+        totalResponseTime: Date.now() - startTime,
+        prerenderStatusCode: statusCode || null,
+        queueMetrics: {
+          queued: queueMetrics.queued,
+          processing: queueMetrics.processing,
+          completed: queueMetrics.completed,
+          errors: queueMetrics.errors,
+          maxConcurrency: queueMetrics.maxConcurrency,
+        },
+      };
+
+      res.set('X-Debug-Mode', 'true');
+      res.set('X-Debug-Info', JSON.stringify(debugInfo));
+
+      // Inject debug info as HTML comment
+      const debugComment = `\n<!-- SEO Shield Proxy Debug Info\n${JSON.stringify(debugInfo, null, 2)}\n-->\n`;
+      responseHtml = debugComment + responseHtml;
+    }
+
+    res.send(responseHtml);
   } catch (error) {
     console.error(`❌ SSR failed for ${requestPath}, falling back to proxy:`, (error as Error).message);
 
