@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import { Badge } from './ui/badge';
 
 export default function ConfigPanel() {
   const [config, setConfig] = useState(null);
@@ -50,104 +52,127 @@ export default function ConfigPanel() {
   };
 
   if (!config) {
-    return <div className="loading">Loading configuration...</div>;
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-slate-500">Loading configuration...</p>
+      </div>
+    );
   }
 
   return (
-    <div className="config-panel">
-      <h2>⚙️ Configuration</h2>
-
-      <div className="config-section">
-        <h3>Cache Rules</h3>
-        <div className="config-item">
-          <label>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span>🔧</span> Cache Rules
+          </CardTitle>
+          <CardDescription>Configure caching behavior and patterns</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-700">Cache by default</label>
             <input
               type="checkbox"
               checked={config.cacheRules.cacheByDefault}
               onChange={toggleCacheByDefault}
               disabled={loading}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
             />
-            Cache by default
-          </label>
-        </div>
+          </div>
 
-        <div className="config-item">
-          <label>Meta Tag Name:</label>
-          <input
-            type="text"
-            value={config.cacheRules.metaTagName}
-            disabled
-            className="config-input"
-          />
-        </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Meta Tag Name</label>
+            <input
+              type="text"
+              value={config.cacheRules.metaTagName}
+              disabled
+              className="w-full px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-md text-slate-900"
+            />
+          </div>
 
-        <div className="config-item">
-          <label>No-Cache Patterns:</label>
-          <div className="pattern-list">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">No-Cache Patterns</label>
             {config.cacheRules.noCachePatterns.length === 0 ? (
-              <div className="no-data">No patterns defined</div>
+              <p className="text-sm text-slate-500">No patterns defined</p>
             ) : (
-              config.cacheRules.noCachePatterns.map((pattern, i) => (
-                <div key={i} className="pattern-item">
-                  <code>{pattern}</code>
-                </div>
-              ))
+              <div className="flex flex-wrap gap-2">
+                {config.cacheRules.noCachePatterns.map((pattern, i) => (
+                  <Badge key={i} variant="outline" className="font-mono text-xs">
+                    {pattern}
+                  </Badge>
+                ))}
+              </div>
             )}
           </div>
-        </div>
 
-        <div className="config-item">
-          <label>Cache Patterns:</label>
-          <div className="pattern-list">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Cache Patterns</label>
             {config.cacheRules.cachePatterns.length === 0 ? (
-              <div className="no-data">No patterns defined</div>
+              <p className="text-sm text-slate-500">No patterns defined</p>
             ) : (
-              config.cacheRules.cachePatterns.map((pattern, i) => (
-                <div key={i} className="pattern-item">
-                  <code>{pattern}</code>
-                </div>
-              ))
+              <div className="flex flex-wrap gap-2">
+                {config.cacheRules.cachePatterns.map((pattern, i) => (
+                  <Badge key={i} variant="outline" className="font-mono text-xs">
+                    {pattern}
+                  </Badge>
+                ))}
+              </div>
             )}
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div className="config-section">
-        <h3>Bot Rules</h3>
-        <div className="config-item">
-          <label>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span>🤖</span> Bot Rules
+          </CardTitle>
+          <CardDescription>Configure bot rendering settings</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium text-slate-700">Render all bots</label>
             <input
               type="checkbox"
               checked={config.botRules.renderAllBots}
               disabled
+              className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
             />
-            Render all bots
-          </label>
-        </div>
-
-        <div className="config-item">
-          <label>Allowed Bots:</label>
-          <div className="bot-list">
-            {config.botRules.allowedBots.map((bot, i) => (
-              <span key={i} className="bot-badge">
-                {bot}
-              </span>
-            ))}
           </div>
-        </div>
-      </div>
 
-      <div className="config-section">
-        <h3>Server Settings</h3>
-        <div className="config-item">
-          <label>Cache TTL:</label>
-          <span>{config.cacheTTL} seconds</span>
-        </div>
-        <div className="config-item">
-          <label>Max Cache Size:</label>
-          <span>{config.maxCacheSize} pages</span>
-        </div>
-      </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Allowed Bots</label>
+            <div className="flex flex-wrap gap-2">
+              {config.botRules.allowedBots.map((bot, i) => (
+                <Badge key={i} variant="secondary">
+                  {bot}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-2">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span>⚙️</span> Server Settings
+          </CardTitle>
+          <CardDescription>View server configuration</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="space-y-1">
+              <p className="text-xs text-slate-500">Cache TTL</p>
+              <p className="text-2xl font-bold text-slate-900">{config.cacheTTL}s</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-slate-500">Max Cache Size</p>
+              <p className="text-2xl font-bold text-slate-900">{config.maxCacheSize}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
