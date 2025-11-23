@@ -29,7 +29,8 @@
     "http-proxy-middleware": "^3.0.0",
     "isbot": "^5.1.0",
     "node-cache": "^5.1.2",
-    "puppeteer": "^23.11.1"
+    "puppeteer": "^23.11.1",
+    "socket.io": "^4.7.2"
   },
   "devDependencies": {
     "jest": "^29.7.0",

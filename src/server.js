@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { isbot } from 'isbot';
 import config from './config.js';
@@ -8,8 +9,10 @@ import CacheRules from './cache-rules.js';
 import adminRoutes from './admin/admin-routes.js';
 import metricsCollector from './admin/metrics-collector.js';
 import configManager from './admin/config-manager.js';
+import { initializeWebSocket } from './admin/websocket.js';
 
 const app = express();
+const httpServer = createServer(app);
 
 // Initialize cache rules
 const cacheRules = new CacheRules(config);
@@ -335,7 +338,7 @@ app.post('/cache/clear', (req, res) => {
 /**
  * Start the server
  */
-const server = app.listen(config.PORT, () => {
+const server = httpServer.listen(config.PORT, () => {
   console.log('');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('🛡️  SEO Shield Proxy - Production Ready');
@@ -348,12 +351,17 @@ const server = app.listen(config.PORT, () => {
   console.log('Endpoints:');
   console.log(`  - Health check: http://localhost:${config.PORT}/health`);
   console.log(`  - Clear cache: POST http://localhost:${config.PORT}/cache/clear`);
+  console.log(`  - Admin Dashboard: http://localhost:${config.PORT}/admin`);
   console.log('');
   console.log('Bot detection: ✅ Active');
   console.log('SSR rendering: ✅ Active');
   console.log('Reverse proxy: ✅ Active');
+  console.log('WebSocket: ✅ Active');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('');
+
+  // Initialize WebSocket after server starts
+  initializeWebSocket(httpServer);
 });
 
 /**
@@ -362,7 +370,7 @@ const server = app.listen(config.PORT, () => {
 process.on('SIGTERM', async () => {
   console.log('⚠️  SIGTERM received, shutting down gracefully...');
 
-  server.close(async () => {
+  httpServer.close(async () => {
     console.log('🔒 HTTP server closed');
     await browserManager.close();
     process.exit(0);
@@ -378,7 +386,7 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   console.log('\n⚠️  SIGINT received, shutting down gracefully...');
 
-  server.close(async () => {
+  httpServer.close(async () => {
     console.log('🔒 HTTP server closed');
     await browserManager.close();
     process.exit(0);

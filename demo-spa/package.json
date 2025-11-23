@@ -1,0 +1,21 @@
+{
+  "name": "seo-demo-spa",
+  "version": "1.0.0",
+  "description": "Demo SPA for testing SEO Shield Proxy",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.1",
+    "react-helmet-async": "^2.0.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.12"
+  }
+}
