@@ -2,8 +2,6 @@
 
 A production-ready Node.js reverse proxy that solves SEO problems for Single Page Applications (SPAs) without modifying client-side code. It detects bots, renders pages server-side using Puppeteer, and serves static HTML to crawlers while transparently proxying human users to your SPA.
 
-## ✨ What's New - Version 2.0
-
 ### 🎉 Complete System with Admin Dashboard & Demo
 
 - ✅ **React Admin Dashboard** with real-time WebSocket monitoring

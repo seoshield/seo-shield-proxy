@@ -120,6 +120,156 @@ class BrowserManager {
     return cluster;
   }
 
+  /**
+   * Comprehensive blacklist of unnecessary domains and resources
+   * that slow down rendering without providing SEO value
+   */
+  private readonly BLACKLISTED_DOMAINS = [
+    // Analytics and tracking
+    'google-analytics.com',
+    'www.google-analytics.com',
+    'googletagmanager.com',
+    'www.googletagmanager.com',
+    'googleadservices.com',
+    'www.googleadservices.com',
+    'doubleclick.net',
+    'www.doubleclick.net',
+    'facebook.net',
+    'www.facebook.net',
+    'connect.facebook.net',
+    'pixel.facebook.com',
+    'www.facebook.com/tr',
+    'hotjar.com',
+    'www.hotjar.com',
+    'hotjar.io',
+    'www.hotjar.io',
+    'mixpanel.com',
+    'www.mixpanel.com',
+    'segment.io',
+    'www.segment.io',
+    'analytics.segment.io',
+    'fullstory.com',
+    'www.fullstory.com',
+    'clarity.ms',
+    'www.clarity.ms',
+    'mouseflow.com',
+    'www.mouseflow.com',
+    'optimizely.com',
+    'www.optimizely.com',
+    'cdn.optimizely.com',
+
+    // Ad networks
+    'googleads.g.doubleclick.net',
+    'googlesyndication.com',
+    'www.googlesyndication.com',
+    'googleads.g.doubleclick.net',
+    'adnxs.com',
+    'www.adnxs.com',
+    'amazon-adsystem.com',
+    'www.amazon-adsystem.com',
+    'criteo.com',
+    'www.criteo.com',
+    'taboola.com',
+    'www.taboola.com',
+    'outbrain.com',
+    'www.outbrain.com',
+
+    // Social media widgets and trackers
+    'platform.twitter.com',
+    'syndication.twitter.com',
+    'www.instagram.com/embed',
+    'www.linkedin.com/embed',
+    'connect.facebook.net',
+    'platform.instagram.com',
+
+    // Other performance-impacting services
+    'cdn.jsdelivr.net/npm/chart.js',
+    'cdnjs.cloudflare.com/ajax/libs/chart.js',
+    'gravatar.com',
+    'www.gravatar.com',
+    'disqus.com',
+    'www.disqus.com',
+  ];
+
+  /**
+   * Blacklisted resource patterns
+   */
+  private readonly BLACKLISTED_PATTERNS = [
+    // Common analytics tracking paths
+    '/analytics.js',
+    '/gtm.js',
+    '/fbevents.js',
+    '/pixel.js',
+    '/tracking.js',
+    '/collect',
+    '/log',
+    '/event',
+    '/metrics',
+
+    // Ad-related paths
+    '/ads/',
+    '/advertising/',
+    '/doubleclick',
+    '/googlead',
+
+    // Social widgets
+    '/widgets.js',
+    '/embed.js',
+    '/social.js',
+    '/facebook.js',
+    '/twitter.js',
+
+    // Resource waste
+    '/favicon.ico',
+    '/robots.txt',
+    '.webp',
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.svg',
+    '.css',
+    '.woff',
+    '.woff2',
+    '.ttf',
+    '.eot',
+  ];
+
+  /**
+   * Check if a request should be blocked based on URL and resource type
+   */
+  private shouldBlockRequest(requestUrl: string, resourceType: string): boolean {
+    try {
+      const url = new URL(requestUrl);
+      const hostname = url.hostname.toLowerCase();
+
+      // Block blacklisted domains
+      for (const blacklistedDomain of this.BLACKLISTED_DOMAINS) {
+        if (hostname.includes(blacklistedDomain.toLowerCase())) {
+          return true;
+        }
+      }
+
+      // Block by URL patterns
+      const lowerUrl = requestUrl.toLowerCase();
+      for (const pattern of this.BLACKLISTED_PATTERNS) {
+        if (lowerUrl.includes(pattern)) {
+          return true;
+        }
+      }
+
+      // Block resource types that aren't needed for SEO
+      if (['image', 'stylesheet', 'font', 'media', 'websocket', 'eventsource'].includes(resourceType)) {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      // If URL parsing fails, allow the request
+      return false;
+    }
+  }
+
   private async renderPage(page: Page, url: string): Promise<RenderResult> {
     try {
       await page.setViewport({
@@ -134,16 +284,24 @@ class BrowserManager {
 
       await page.setRequestInterception(true);
 
+      let blockedCount = 0;
+      let allowedCount = 0;
+
       page.on('request', (request) => {
         try {
+          const requestUrl = request.url();
           const resourceType = request.resourceType();
-          if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+
+          if (this.shouldBlockRequest(requestUrl, resourceType)) {
+            blockedCount++;
             request.abort();
           } else {
+            allowedCount++;
             request.continue();
           }
         } catch (error) {
           console.debug('Request interception error (ignoring):', (error as Error).message);
+          request.continue();
         }
       });
 
@@ -195,6 +353,16 @@ class BrowserManager {
 
       if (statusCode) {
         console.log(`📊 Detected prerender-status-code: ${statusCode}`);
+      }
+
+      // Log performance metrics
+      const totalRequests = blockedCount + allowedCount;
+      const blockRate = totalRequests > 0 ? Math.round((blockedCount / totalRequests) * 100) : 0;
+
+      console.log(`🚀 Network optimization: Blocked ${blockedCount}/${totalRequests} requests (${blockRate}%)`);
+
+      if (blockedCount > 0) {
+        console.log(`⚡ Performance boost: ${blockedCount} unnecessary requests blocked to improve render speed`);
       }
 
       return { html, statusCode };
