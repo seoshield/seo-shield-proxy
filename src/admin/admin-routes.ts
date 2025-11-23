@@ -8,6 +8,7 @@ import express, { Router, Request, Response, NextFunction } from 'express';
 import metricsCollector from './metrics-collector.js';
 import configManager from './config-manager.js';
 import cache from '../cache.js';
+import browserManager from '../browser.js';
 
 const router: Router = express.Router();
 
@@ -67,12 +68,15 @@ router.get('/api/stats', authenticate, (_req: Request, res: Response) => {
   const botStats = metricsCollector.getBotStats();
   const cacheStats = cache.getStats();
 
+  const queueMetrics = browserManager.getMetrics();
+
   res.json({
     success: true,
     data: {
       metrics: stats,
       bots: botStats,
       cache: cacheStats,
+      queue: queueMetrics,
     },
   });
 });
@@ -120,17 +124,7 @@ router.get('/api/urls', authenticate, (req: Request, res: Response) => {
  * API: Get cache list
  */
 router.get('/api/cache', authenticate, (_req: Request, res: Response) => {
-  const cacheKeys = cache.cache.keys();
-  const cacheData = cacheKeys.map((key) => {
-    const value = cache.cache.get<string>(key);
-    const ttl = cache.cache.getTtl(key);
-
-    return {
-      url: key,
-      size: value ? value.length : 0,
-      ttl: ttl ? Math.floor((ttl - Date.now()) / 1000) : 0,
-    };
-  });
+  const cacheData = cache.getAllEntries();
 
   res.json({
     success: true,

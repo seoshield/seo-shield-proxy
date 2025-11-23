@@ -1,6 +1,22 @@
 version: '3.8'
 
 services:
+  # Redis - Persistent cache (optional)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - seo-network
+    volumes:
+      - redis-data:/data
+
   # Demo SPA - The target application
   demo-spa:
     build:
@@ -28,6 +44,8 @@ services:
     environment:
       - TARGET_URL=http://demo-spa:3000
       - PORT=8080
+      - CACHE_TYPE=redis
+      - REDIS_URL=redis://redis:6379
       - CACHE_TTL=3600
       - PUPPETEER_TIMEOUT=30000
       - NODE_ENV=production
@@ -35,6 +53,7 @@ services:
       - NO_CACHE_PATTERNS=/no-cache,/admin/*,/api/*
     depends_on:
       - demo-spa
+      - redis
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
@@ -61,3 +80,7 @@ services:
 networks:
   seo-network:
     driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
