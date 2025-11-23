@@ -14,35 +14,16 @@ const app = express();
 // Initialize cache rules
 const cacheRules = new CacheRules(config);
 
-// Mount admin panel dynamically based on runtime config
-// This allows the admin path to be changed in runtime-config.json without restart
-app.use((req, res, next) => {
+// Mount admin panel with error handling
+try {
   const runtimeConfig = configManager.getConfig();
   const adminPath = runtimeConfig?.adminPath || '/admin';
-
-  // Check if request is for admin panel
-  if (req.path.startsWith(adminPath)) {
-    // Remove admin path prefix and pass to admin routes
-    const originalUrl = req.url;
-    const originalPath = req.path;
-
-    // Adjust path for admin routes
-    req.url = req.url.replace(adminPath, '') || '/';
-    req.path = req.path.replace(adminPath, '') || '/';
-    req.baseUrl = adminPath;
-
-    // Call admin routes
-    adminRoutes(req, res, (err) => {
-      // Restore original URL if route not found
-      req.url = originalUrl;
-      req.path = originalPath;
-      if (err) return next(err);
-      next();
-    });
-  } else {
-    next();
-  }
-});
+  console.log(`🔧 Admin panel mounted at: ${adminPath}`);
+  app.use(adminPath, adminRoutes);
+} catch (error) {
+  console.error('⚠️  Failed to mount admin panel:', error.message);
+  // Continue without admin panel
+}
 
 /**
  * Static asset extensions that should always be proxied
@@ -107,10 +88,20 @@ const proxyMiddleware = createProxyMiddleware({
 app.use(async (req, res, next) => {
   const userAgent = req.headers['user-agent'] || '';
   const requestPath = req.path;
-  const fullUrl = `${config.TARGET_URL}${req.url}`;
 
-  // Log incoming request
-  console.log(`📥 ${req.method} ${requestPath} - UA: ${userAgent.substring(0, 50)}...`);
+  // Validate and sanitize URL construction
+  let fullUrl;
+  try {
+    const targetUrl = new URL(config.TARGET_URL);
+    fullUrl = `${targetUrl.origin}${req.url}`;
+  } catch (error) {
+    console.error('❌ Invalid TARGET_URL configuration:', error.message);
+    return res.status(500).send('Server configuration error');
+  }
+
+  // Log incoming request (truncate very long user agents)
+  const uaPreview = userAgent.length > 100 ? `${userAgent.substring(0, 97)}...` : userAgent;
+  console.log(`📥 ${req.method} ${requestPath} - UA: ${uaPreview}`);
 
   // 1. Check if it's a static asset - always proxy
   if (isStaticAsset(requestPath)) {
@@ -273,31 +264,72 @@ app.use(async (req, res, next) => {
  * Health check endpoint
  */
 app.get('/health', (req, res) => {
-  const stats = cache.getStats();
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    cache: {
-      keys: stats.keys,
-      hits: stats.hits,
-      misses: stats.misses,
-      hitRate: stats.hits / (stats.hits + stats.misses) || 0,
-    },
-    cacheRules: cacheRules.getRulesSummary(),
-    config: {
-      targetUrl: config.TARGET_URL,
-      cacheTtl: config.CACHE_TTL,
-      puppeteerTimeout: config.PUPPETEER_TIMEOUT,
-    },
-  });
+  try {
+    const stats = cache.getStats();
+    const memoryUsage = process.memoryUsage();
+
+    res.json({
+      status: 'ok',
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString(),
+      memory: {
+        heapUsed: Math.floor(memoryUsage.heapUsed / 1024 / 1024), // MB
+        heapTotal: Math.floor(memoryUsage.heapTotal / 1024 / 1024), // MB
+        rss: Math.floor(memoryUsage.rss / 1024 / 1024), // MB
+        external: Math.floor(memoryUsage.external / 1024 / 1024), // MB
+      },
+      cache: {
+        keys: stats.keys,
+        hits: stats.hits,
+        misses: stats.misses,
+        hitRate: (stats.hits / (stats.hits + stats.misses) || 0).toFixed(4),
+        ksize: stats.ksize,
+        vsize: stats.vsize,
+      },
+      cacheRules: cacheRules.getRulesSummary(),
+      config: {
+        targetUrl: config.TARGET_URL,
+        cacheTtl: config.CACHE_TTL,
+        puppeteerTimeout: config.PUPPETEER_TIMEOUT,
+        nodeEnv: config.NODE_ENV,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Health check error:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+    });
+  }
 });
 
 /**
  * Cache management endpoint - Clear cache
  */
 app.post('/cache/clear', (req, res) => {
-  cache.flush();
-  res.json({ status: 'ok', message: 'Cache cleared successfully' });
+  try {
+    const statsBefore = cache.getStats();
+    cache.flush();
+    const statsAfter = cache.getStats();
+
+    console.log(`🗑️  Cache cleared via API (${statsBefore.keys} keys removed)`);
+
+    res.json({
+      status: 'ok',
+      message: 'Cache cleared successfully',
+      cleared: {
+        keys: statsBefore.keys,
+        hits: statsBefore.hits,
+        misses: statsBefore.misses,
+      },
+    });
+  } catch (error) {
+    console.error('❌ Cache clear error:', error);
+    res.status(500).json({
+      status: 'error',
+      error: error.message,
+    });
+  }
 });
 
 /**

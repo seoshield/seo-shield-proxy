@@ -83,6 +83,21 @@ class ConfigManager {
    */
   async saveConfig(config = this.config) {
     try {
+      // Validate config before saving
+      if (!config || typeof config !== 'object') {
+        throw new Error('Invalid configuration object');
+      }
+
+      // Create backup before saving
+      try {
+        const backupFile = `${CONFIG_FILE}.backup`;
+        if (this.config) {
+          await fs.writeFile(backupFile, JSON.stringify(this.config, null, 2), 'utf-8');
+        }
+      } catch (backupError) {
+        console.warn('⚠️  Could not create config backup:', backupError.message);
+      }
+
       const data = JSON.stringify(config, null, 2);
       await fs.writeFile(CONFIG_FILE, data, 'utf-8');
       this.config = config;

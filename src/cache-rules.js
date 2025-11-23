@@ -14,10 +14,16 @@ class CacheRules {
     // Default behavior when URL doesn't match any pattern
     // true = cache everything by default
     // false = cache nothing by default (only explicit patterns)
-    this.cacheByDefault = config.CACHE_BY_DEFAULT !== 'false';
+    this.cacheByDefault = Boolean(config.CACHE_BY_DEFAULT);
 
     // Meta tag name to check in rendered HTML
     this.metaTagName = config.CACHE_META_TAG || 'x-seo-shield-cache';
+
+    // Validate meta tag name (should be safe for regex)
+    if (!/^[a-zA-Z0-9-_]+$/.test(this.metaTagName)) {
+      console.error(`⚠️  Invalid meta tag name: ${this.metaTagName}, using default`);
+      this.metaTagName = 'x-seo-shield-cache';
+    }
 
     console.log('📋 Cache Rules initialized:');
     console.log(`   NO_CACHE patterns: ${this.noCachePatterns.length || 'none'}`);
@@ -32,7 +38,7 @@ class CacheRules {
    * @returns {Array<RegExp>} - Array of regex patterns
    */
   parsePatterns(patterns) {
-    if (!patterns || patterns.trim() === '') {
+    if (!patterns || typeof patterns !== 'string' || patterns.trim() === '') {
       return [];
     }
 
@@ -44,14 +50,21 @@ class CacheRules {
         try {
           // If pattern starts and ends with /, treat as regex
           if (p.startsWith('/') && p.endsWith('/') && p.length > 2) {
-            return new RegExp(p.slice(1, -1));
+            const regexPattern = p.slice(1, -1);
+            // Validate regex before creating
+            const regex = new RegExp(regexPattern);
+            // Test the regex with a simple string to ensure it's valid
+            regex.test('/test');
+            return regex;
           }
           // Otherwise, escape special chars and use as literal match with wildcards
           // Convert * to .* for wildcard matching
-          const escaped = p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+          const escaped = p
+            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*/g, '.*');
           return new RegExp(`^${escaped}$`);
         } catch (error) {
-          console.error(`⚠️  Invalid pattern: ${p}`, error.message);
+          console.error(`⚠️  Invalid pattern '${p}':`, error.message);
           return null;
         }
       })
