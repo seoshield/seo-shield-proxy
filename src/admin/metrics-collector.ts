@@ -3,13 +3,66 @@
  * Collects and stores traffic metrics for admin dashboard
  */
 
-class MetricsCollector {
-  constructor() {
-    // Traffic log (rolling window - configurable max size)
-    this.trafficLog = [];
-    this.maxLogSize = parseInt(process.env.METRICS_LOG_SIZE, 10) || 1000;
+export interface RequestData {
+  path: string;
+  userAgent: string;
+  isBot: boolean;
+  action: 'ssr' | 'proxy' | 'static' | 'bypass' | 'error';
+  cacheStatus: 'HIT' | 'MISS' | null;
+  rule?: string;
+  cached?: boolean;
+  error?: string;
+}
 
-    // Aggregate statistics
+interface TrafficLogEntry extends RequestData {
+  timestamp: number;
+}
+
+interface Stats {
+  totalRequests: number;
+  botRequests: number;
+  humanRequests: number;
+  cacheHits: number;
+  cacheMisses: number;
+  ssrRendered: number;
+  proxiedDirect: number;
+  staticAssets: number;
+  bypassedByRules: number;
+  errors: number;
+}
+
+interface UrlStat {
+  count: number;
+  cacheHits: number;
+  cacheMisses: number;
+  lastAccess: number;
+}
+
+interface TimelineEntry {
+  timestamp: number;
+  total: number;
+  bots: number;
+  humans: number;
+  cacheHits: number;
+  cacheMisses: number;
+}
+
+/**
+ * Metrics Collector
+ */
+class MetricsCollector {
+  private trafficLog: TrafficLogEntry[] = [];
+  private maxLogSize: number;
+  private stats: Stats;
+  private botStats: Record<string, number> = {};
+  private maxBotTypes = 100;
+  private urlStats: Record<string, UrlStat> = {};
+  private maxUrls = 500;
+  private startTime: number;
+
+  constructor() {
+    this.maxLogSize = parseInt(process.env['METRICS_LOG_SIZE'] || '1000', 10);
+
     this.stats = {
       totalRequests: 0,
       botRequests: 0,
@@ -23,15 +76,6 @@ class MetricsCollector {
       errors: 0,
     };
 
-    // Bot breakdown (limit to prevent unbounded growth)
-    this.botStats = {};
-    this.maxBotTypes = 100;
-
-    // URL statistics (limit to prevent unbounded growth)
-    this.urlStats = {};
-    this.maxUrls = 500;
-
-    // Start time
     this.startTime = Date.now();
 
     console.log(`📊 Metrics collector initialized (max log: ${this.maxLogSize}, max URLs: ${this.maxUrls})`);
@@ -39,13 +83,11 @@ class MetricsCollector {
 
   /**
    * Record an incoming request
-   * @param {object} data - Request data
    */
-  recordRequest(data) {
+  recordRequest(data: RequestData): void {
     const timestamp = Date.now();
 
-    // Add to traffic log
-    const logEntry = {
+    const logEntry: TrafficLogEntry = {
       timestamp,
       ...data,
     };
@@ -68,7 +110,6 @@ class MetricsCollector {
       if (Object.keys(this.botStats).length < this.maxBotTypes || this.botStats[botName]) {
         this.botStats[botName] = (this.botStats[botName] || 0) + 1;
       } else {
-        // Consolidate into "Other Bots" when limit reached
         this.botStats['Other Bots'] = (this.botStats['Other Bots'] || 0) + 1;
       }
     } else {
@@ -97,15 +138,16 @@ class MetricsCollector {
 
     // URL statistics (with limit)
     if (!this.urlStats[data.path]) {
-      // Check if we've reached the limit
       const urlCount = Object.keys(this.urlStats).length;
       if (urlCount >= this.maxUrls) {
         // Remove the least recently accessed URL
         const entries = Object.entries(this.urlStats);
         entries.sort((a, b) => a[1].lastAccess - b[1].lastAccess);
-        const oldestUrl = entries[0][0];
-        delete this.urlStats[oldestUrl];
-        console.log(`📊 URL stats limit reached (${this.maxUrls}), removed oldest: ${oldestUrl}`);
+        const oldestUrl = entries[0]?.[0];
+        if (oldestUrl) {
+          delete this.urlStats[oldestUrl];
+          console.log(`📊 URL stats limit reached (${this.maxUrls}), removed oldest: ${oldestUrl}`);
+        }
       }
 
       this.urlStats[data.path] = {
@@ -116,22 +158,20 @@ class MetricsCollector {
       };
     }
 
-    this.urlStats[data.path].count++;
-    this.urlStats[data.path].lastAccess = timestamp;
+    this.urlStats[data.path]!.count++;
+    this.urlStats[data.path]!.lastAccess = timestamp;
 
     if (data.cacheStatus === 'HIT') {
-      this.urlStats[data.path].cacheHits++;
+      this.urlStats[data.path]!.cacheHits++;
     } else if (data.cacheStatus === 'MISS') {
-      this.urlStats[data.path].cacheMisses++;
+      this.urlStats[data.path]!.cacheMisses++;
     }
   }
 
   /**
    * Extract bot name from user agent
-   * @param {string} userAgent
-   * @returns {string}
    */
-  extractBotName(userAgent) {
+  private extractBotName(userAgent: string): string {
     const ua = userAgent.toLowerCase();
 
     if (ua.includes('googlebot')) return 'Googlebot';
@@ -152,9 +192,8 @@ class MetricsCollector {
 
   /**
    * Get current statistics
-   * @returns {object}
    */
-  getStats() {
+  getStats(): Stats & { uptime: number; cacheHitRate: string; requestsPerSecond: string } {
     const uptime = Math.floor((Date.now() - this.startTime) / 1000);
     const cacheHitRate =
       this.stats.cacheHits + this.stats.cacheMisses > 0
@@ -171,18 +210,15 @@ class MetricsCollector {
 
   /**
    * Get bot statistics
-   * @returns {object}
    */
-  getBotStats() {
+  getBotStats(): Record<string, number> {
     return this.botStats;
   }
 
   /**
    * Get URL statistics
-   * @param {number} limit - Number of top URLs to return
-   * @returns {array}
    */
-  getUrlStats(limit = 50) {
+  getUrlStats(limit = 50): Array<UrlStat & { path: string; hitRate: string | number }> {
     return Object.entries(this.urlStats)
       .map(([path, stats]) => ({
         path,
@@ -198,21 +234,17 @@ class MetricsCollector {
 
   /**
    * Get recent traffic log
-   * @param {number} limit - Number of recent entries to return
-   * @returns {array}
    */
-  getRecentTraffic(limit = 100) {
+  getRecentTraffic(limit = 100): TrafficLogEntry[] {
     return this.trafficLog.slice(-limit).reverse();
   }
 
   /**
    * Get traffic timeline (grouped by minute)
-   * @param {number} minutes - Number of minutes to return
-   * @returns {array}
    */
-  getTrafficTimeline(minutes = 60) {
+  getTrafficTimeline(minutes = 60): TimelineEntry[] {
     const now = Date.now();
-    const timeline = [];
+    const timeline: TimelineEntry[] = [];
 
     for (let i = minutes - 1; i >= 0; i--) {
       const minuteStart = now - i * 60000;
@@ -238,7 +270,7 @@ class MetricsCollector {
   /**
    * Reset all statistics
    */
-  reset() {
+  reset(): void {
     this.trafficLog = [];
     this.stats = {
       totalRequests: 0,

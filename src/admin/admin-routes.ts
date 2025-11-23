@@ -4,21 +4,20 @@
  * Note: React admin dashboard runs on port 3001, this only provides APIs
  */
 
-import express from 'express';
+import express, { Router, Request, Response, NextFunction } from 'express';
 import metricsCollector from './metrics-collector.js';
 import configManager from './config-manager.js';
 import cache from '../cache.js';
 
-const router = express.Router();
+const router: Router = express.Router();
 
 /**
  * Basic Authentication Middleware
  */
-function authenticate(req, res, next) {
+function authenticate(req: Request, res: Response, next: NextFunction): void | Response {
   try {
     const config = configManager.getConfig();
 
-    // Skip auth if disabled
     if (!config?.adminAuth?.enabled) {
       return next();
     }
@@ -33,15 +32,13 @@ function authenticate(req, res, next) {
     try {
       const base64Credentials = authHeader.slice(6);
       const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
-      const [username, password] = credentials.split(':', 2); // Limit split to 2 parts
+      const [username, password] = credentials.split(':', 2);
 
-      // Validate credentials exist
       if (!username || !password) {
         res.setHeader('WWW-Authenticate', 'Basic realm="Admin Panel"');
         return res.status(401).json({ error: 'Invalid credentials format' });
       }
 
-      // Check credentials (use constant-time comparison in production)
       if (
         username === config.adminAuth.username &&
         password === config.adminAuth.password
@@ -65,7 +62,7 @@ function authenticate(req, res, next) {
 /**
  * API: Get statistics
  */
-router.get('/api/stats', authenticate, (req, res) => {
+router.get('/api/stats', authenticate, (_req: Request, res: Response) => {
   const stats = metricsCollector.getStats();
   const botStats = metricsCollector.getBotStats();
   const cacheStats = cache.getStats();
@@ -83,8 +80,8 @@ router.get('/api/stats', authenticate, (req, res) => {
 /**
  * API: Get recent traffic
  */
-router.get('/api/traffic', authenticate, (req, res) => {
-  const limit = parseInt(req.query.limit) || 100;
+router.get('/api/traffic', authenticate, (req: Request, res: Response) => {
+  const limit = parseInt(req.query['limit'] as string) || 100;
   const traffic = metricsCollector.getRecentTraffic(limit);
 
   res.json({
@@ -96,8 +93,8 @@ router.get('/api/traffic', authenticate, (req, res) => {
 /**
  * API: Get traffic timeline
  */
-router.get('/api/timeline', authenticate, (req, res) => {
-  const minutes = parseInt(req.query.minutes) || 60;
+router.get('/api/timeline', authenticate, (req: Request, res: Response) => {
+  const minutes = parseInt(req.query['minutes'] as string) || 60;
   const timeline = metricsCollector.getTrafficTimeline(minutes);
 
   res.json({
@@ -109,8 +106,8 @@ router.get('/api/timeline', authenticate, (req, res) => {
 /**
  * API: Get URL statistics
  */
-router.get('/api/urls', authenticate, (req, res) => {
-  const limit = parseInt(req.query.limit) || 50;
+router.get('/api/urls', authenticate, (req: Request, res: Response) => {
+  const limit = parseInt(req.query['limit'] as string) || 50;
   const urlStats = metricsCollector.getUrlStats(limit);
 
   res.json({
@@ -122,10 +119,10 @@ router.get('/api/urls', authenticate, (req, res) => {
 /**
  * API: Get cache list
  */
-router.get('/api/cache', authenticate, (req, res) => {
+router.get('/api/cache', authenticate, (_req: Request, res: Response) => {
   const cacheKeys = cache.cache.keys();
   const cacheData = cacheKeys.map((key) => {
-    const value = cache.cache.get(key);
+    const value = cache.cache.get<string>(key);
     const ttl = cache.cache.getTtl(key);
 
     return {
@@ -144,11 +141,10 @@ router.get('/api/cache', authenticate, (req, res) => {
 /**
  * API: Clear cache
  */
-router.post('/api/cache/clear', authenticate, (req, res) => {
+router.post('/api/cache/clear', authenticate, express.json(), (req: Request, res: Response) => {
   const { url } = req.body;
 
   if (url) {
-    // Clear specific URL
     const deleted = cache.delete(url);
     res.json({
       success: true,
@@ -156,7 +152,6 @@ router.post('/api/cache/clear', authenticate, (req, res) => {
       deleted,
     });
   } else {
-    // Clear all cache
     cache.flush();
     res.json({
       success: true,
@@ -168,7 +163,7 @@ router.post('/api/cache/clear', authenticate, (req, res) => {
 /**
  * API: Get configuration
  */
-router.get('/api/config', authenticate, (req, res) => {
+router.get('/api/config', authenticate, (_req: Request, res: Response) => {
   const config = configManager.getConfig();
 
   res.json({
@@ -180,7 +175,7 @@ router.get('/api/config', authenticate, (req, res) => {
 /**
  * API: Update configuration
  */
-router.post('/api/config', authenticate, express.json(), async (req, res) => {
+router.post('/api/config', authenticate, express.json(), async (req: Request, res: Response) => {
   try {
     const updates = req.body;
     const newConfig = await configManager.updateConfig(updates);
@@ -193,7 +188,7 @@ router.post('/api/config', authenticate, express.json(), async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: (error as Error).message,
     });
   }
 });
@@ -205,7 +200,7 @@ router.post(
   '/api/config/cache-pattern',
   authenticate,
   express.json(),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { pattern, type } = req.body;
 
@@ -216,17 +211,17 @@ router.post(
         });
       }
 
-      const config = await configManager.addCachePattern(pattern, type);
+      const config = await configManager.addCachePattern(pattern, type as 'noCache' | 'cache');
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Cache pattern added',
         data: config,
       });
     } catch (error) {
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -239,7 +234,7 @@ router.delete(
   '/api/config/cache-pattern',
   authenticate,
   express.json(),
-  async (req, res) => {
+  async (req: Request, res: Response) => {
     try {
       const { pattern, type } = req.body;
 
@@ -250,17 +245,17 @@ router.delete(
         });
       }
 
-      const config = await configManager.removeCachePattern(pattern, type);
+      const config = await configManager.removeCachePattern(pattern, type as 'noCache' | 'cache');
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Cache pattern removed',
         data: config,
       });
     } catch (error) {
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
-        error: error.message,
+        error: (error as Error).message,
       });
     }
   }
@@ -269,7 +264,7 @@ router.delete(
 /**
  * API: Manage bot rules
  */
-router.post('/api/config/bot', authenticate, express.json(), async (req, res) => {
+router.post('/api/config/bot', authenticate, express.json(), async (req: Request, res: Response) => {
   try {
     const { botName, action } = req.body;
 
@@ -299,15 +294,15 @@ router.post('/api/config/bot', authenticate, express.json(), async (req, res) =>
         });
     }
 
-    res.json({
+    return res.json({
       success: true,
       message: `Bot ${botName} ${action}ed`,
       data: config,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      error: error.message,
+      error: (error as Error).message,
     });
   }
 });
@@ -315,7 +310,7 @@ router.post('/api/config/bot', authenticate, express.json(), async (req, res) =>
 /**
  * API: Reset configuration to defaults
  */
-router.post('/api/config/reset', authenticate, async (req, res) => {
+router.post('/api/config/reset', authenticate, async (_req: Request, res: Response) => {
   try {
     const config = await configManager.resetToDefaults();
 
@@ -327,7 +322,7 @@ router.post('/api/config/reset', authenticate, async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message,
+      error: (error as Error).message,
     });
   }
 });
@@ -335,7 +330,7 @@ router.post('/api/config/reset', authenticate, async (req, res) => {
 /**
  * API: Reset metrics
  */
-router.post('/api/metrics/reset', authenticate, (req, res) => {
+router.post('/api/metrics/reset', authenticate, (_req: Request, res: Response) => {
   metricsCollector.reset();
 
   res.json({
@@ -347,7 +342,7 @@ router.post('/api/metrics/reset', authenticate, (req, res) => {
 /**
  * API: Real-time updates (Server-Sent Events)
  */
-router.get('/api/stream', authenticate, (req, res) => {
+router.get('/api/stream', authenticate, (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');

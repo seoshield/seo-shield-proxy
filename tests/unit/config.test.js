@@ -46,7 +46,7 @@ describe('Config Module', () => {
       };
 
       // Act
-      await import('../../src/config.js');
+      await import('../../dist/config.js');
 
       // Assert
       expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -63,7 +63,7 @@ describe('Config Module', () => {
       };
 
       // Act
-      await import('../../src/config.js');
+      await import('../../dist/config.js');
 
       // Assert
       expect(consoleErrorSpy).toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe('Config Module', () => {
       };
 
       // Act
-      await import('../../src/config.js');
+      await import('../../dist/config.js');
 
       // Assert
       expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -95,7 +95,7 @@ describe('Config Module', () => {
       };
 
       // Act
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
 
       // Assert
       expect(config.TARGET_URL).toBe('https://example.com');
@@ -114,42 +114,42 @@ describe('Config Module', () => {
     });
 
     test('should use default PORT (8080)', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.PORT).toBe(8080);
     });
 
     test('should use default CACHE_TTL (3600)', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_TTL).toBe(3600);
     });
 
     test('should use default PUPPETEER_TIMEOUT (30000)', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.PUPPETEER_TIMEOUT).toBe(30000);
     });
 
     test('should use default NODE_ENV (production)', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.NODE_ENV).toBe('production');
     });
 
     test('should use default CACHE_BY_DEFAULT (true)', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_BY_DEFAULT).toBe(true);
     });
 
     test('should use default CACHE_META_TAG', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_META_TAG).toBe('x-seo-shield-cache');
     });
 
     test('should use empty string for NO_CACHE_PATTERNS by default', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.NO_CACHE_PATTERNS).toBe('');
     });
 
     test('should use empty string for CACHE_PATTERNS by default', async () => {
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_PATTERNS).toBe('');
     });
   });
@@ -162,7 +162,7 @@ describe('Config Module', () => {
         PORT: '3000',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.PORT).toBe(3000);
     });
 
@@ -173,7 +173,7 @@ describe('Config Module', () => {
         CACHE_TTL: '7200',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_TTL).toBe(7200);
     });
 
@@ -184,7 +184,7 @@ describe('Config Module', () => {
         PUPPETEER_TIMEOUT: '60000',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.PUPPETEER_TIMEOUT).toBe(60000);
     });
 
@@ -195,7 +195,7 @@ describe('Config Module', () => {
         NODE_ENV: 'development',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.NODE_ENV).toBe('development');
     });
 
@@ -206,7 +206,7 @@ describe('Config Module', () => {
         NO_CACHE_PATTERNS: '/admin/*,/api/*',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.NO_CACHE_PATTERNS).toBe('/admin/*,/api/*');
     });
 
@@ -217,7 +217,7 @@ describe('Config Module', () => {
         CACHE_PATTERNS: '/blog/*,/products/*',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_PATTERNS).toBe('/blog/*,/products/*');
     });
 
@@ -228,7 +228,7 @@ describe('Config Module', () => {
         CACHE_BY_DEFAULT: 'false',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_BY_DEFAULT).toBe(false);
     });
 
@@ -239,7 +239,7 @@ describe('Config Module', () => {
         CACHE_META_TAG: 'custom-cache-tag',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.CACHE_META_TAG).toBe('custom-cache-tag');
     });
   });
@@ -252,7 +252,7 @@ describe('Config Module', () => {
         PORT: '9000',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(typeof config.PORT).toBe('number');
       expect(config.PORT).toBe(9000);
     });
@@ -264,7 +264,7 @@ describe('Config Module', () => {
         PORT: 'invalid',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.PORT).toBe(8080); // Default fallback
     });
 
@@ -275,7 +275,7 @@ describe('Config Module', () => {
         CACHE_TTL: '1800',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(typeof config.CACHE_TTL).toBe('number');
       expect(config.CACHE_TTL).toBe(1800);
     });
@@ -287,9 +287,31 @@ describe('Config Module', () => {
         PUPPETEER_TIMEOUT: '45000',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(typeof config.PUPPETEER_TIMEOUT).toBe('number');
       expect(config.PUPPETEER_TIMEOUT).toBe(45000);
+    });
+
+    test('should handle invalid CACHE_TTL gracefully (use default)', async () => {
+      process.env = {
+        ...originalEnv,
+        TARGET_URL: 'https://test.com',
+        CACHE_TTL: 'invalid',
+      };
+
+      const { default: config } = await import('../../dist/config.js');
+      expect(config.CACHE_TTL).toBe(3600); // Default value
+    });
+
+    test('should handle invalid PUPPETEER_TIMEOUT gracefully (use default)', async () => {
+      process.env = {
+        ...originalEnv,
+        TARGET_URL: 'https://test.com',
+        PUPPETEER_TIMEOUT: 'invalid',
+      };
+
+      const { default: config } = await import('../../dist/config.js');
+      expect(config.PUPPETEER_TIMEOUT).toBe(30000); // Default value
     });
   });
 
@@ -300,7 +322,7 @@ describe('Config Module', () => {
         TARGET_URL: 'https://example.com',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.TARGET_URL).toBe('https://example.com');
       expect(processExitSpy).not.toHaveBeenCalled();
     });
@@ -311,7 +333,7 @@ describe('Config Module', () => {
         TARGET_URL: 'http://localhost:3000',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.TARGET_URL).toBe('http://localhost:3000');
       expect(processExitSpy).not.toHaveBeenCalled();
     });
@@ -322,7 +344,7 @@ describe('Config Module', () => {
         TARGET_URL: 'https://example.com/app',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.TARGET_URL).toBe('https://example.com/app');
       expect(processExitSpy).not.toHaveBeenCalled();
     });
@@ -333,7 +355,7 @@ describe('Config Module', () => {
         TARGET_URL: 'https://example.com:8080',
       };
 
-      const { default: config } = await import('../../src/config.js');
+      const { default: config } = await import('../../dist/config.js');
       expect(config.TARGET_URL).toBe('https://example.com:8080');
       expect(processExitSpy).not.toHaveBeenCalled();
     });

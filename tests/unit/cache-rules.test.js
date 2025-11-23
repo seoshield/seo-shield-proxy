@@ -4,7 +4,7 @@
  */
 
 import { jest } from '@jest/globals';
-import CacheRules from '../../src/cache-rules.js';
+import CacheRules from '../../dist/cache-rules.js';
 
 describe('CacheRules Module', () => {
   describe('Pattern Parsing', () => {

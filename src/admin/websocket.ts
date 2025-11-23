@@ -3,26 +3,41 @@
  * Provides live updates for metrics, traffic, and cache statistics
  */
 
-import { Server } from 'socket.io';
+import { Server as HttpServer } from 'http';
+import { Server, Socket } from 'socket.io';
 import metricsCollector from './metrics-collector.js';
 import cache from '../cache.js';
 
-let io = null;
+let io: Server | null = null;
+
+interface MemoryStats {
+  heapUsed: number;
+  heapTotal: number;
+  rss: number;
+  external: number;
+}
+
+interface StatsPayload {
+  metrics: ReturnType<typeof metricsCollector.getStats>;
+  bots: ReturnType<typeof metricsCollector.getBotStats>;
+  cache: ReturnType<typeof cache.getStats>;
+  memory: MemoryStats;
+  timestamp: number;
+}
 
 /**
  * Initialize Socket.io server
- * @param {import('http').Server} httpServer - HTTP server instance
  */
-export function initializeWebSocket(httpServer) {
+export function initializeWebSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     path: '/admin/socket.io',
     cors: {
-      origin: '*', // Configure based on your needs
+      origin: '*',
       methods: ['GET', 'POST'],
     },
   });
 
-  io.on('connection', (socket) => {
+  io.on('connection', (socket: Socket) => {
     console.log('📡 Admin client connected:', socket.id);
 
     // Send initial stats on connection
@@ -57,23 +72,21 @@ export function initializeWebSocket(httpServer) {
 
 /**
  * Send stats to a specific socket
- * @param {Socket} socket - Socket.io socket instance
  */
-function sendStats(socket) {
-  const stats = {
+function sendStats(socket: Socket): void {
+  const memoryUsage = process.memoryUsage();
+
+  const stats: StatsPayload = {
     metrics: metricsCollector.getStats(),
     bots: metricsCollector.getBotStats(),
     cache: cache.getStats(),
-    memory: process.memoryUsage(),
+    memory: {
+      heapUsed: Math.floor(memoryUsage.heapUsed / 1024 / 1024),
+      heapTotal: Math.floor(memoryUsage.heapTotal / 1024 / 1024),
+      rss: Math.floor(memoryUsage.rss / 1024 / 1024),
+      external: Math.floor(memoryUsage.external / 1024 / 1024),
+    },
     timestamp: Date.now(),
-  };
-
-  // Convert memory values to MB
-  stats.memory = {
-    heapUsed: Math.floor(stats.memory.heapUsed / 1024 / 1024),
-    heapTotal: Math.floor(stats.memory.heapTotal / 1024 / 1024),
-    rss: Math.floor(stats.memory.rss / 1024 / 1024),
-    external: Math.floor(stats.memory.external / 1024 / 1024),
   };
 
   socket.emit('stats', stats);
@@ -82,23 +95,22 @@ function sendStats(socket) {
 /**
  * Broadcast stats to all connected clients
  */
-function broadcastStats() {
+function broadcastStats(): void {
   if (!io) return;
 
-  const stats = {
+  const memoryUsage = process.memoryUsage();
+
+  const stats: StatsPayload = {
     metrics: metricsCollector.getStats(),
     bots: metricsCollector.getBotStats(),
     cache: cache.getStats(),
-    memory: process.memoryUsage(),
+    memory: {
+      heapUsed: Math.floor(memoryUsage.heapUsed / 1024 / 1024),
+      heapTotal: Math.floor(memoryUsage.heapTotal / 1024 / 1024),
+      rss: Math.floor(memoryUsage.rss / 1024 / 1024),
+      external: Math.floor(memoryUsage.external / 1024 / 1024),
+    },
     timestamp: Date.now(),
-  };
-
-  // Convert memory values to MB
-  stats.memory = {
-    heapUsed: Math.floor(stats.memory.heapUsed / 1024 / 1024),
-    heapTotal: Math.floor(stats.memory.heapTotal / 1024 / 1024),
-    rss: Math.floor(stats.memory.rss / 1024 / 1024),
-    external: Math.floor(stats.memory.external / 1024 / 1024),
   };
 
   io.emit('stats', stats);
@@ -106,9 +118,8 @@ function broadcastStats() {
 
 /**
  * Broadcast a traffic event to all connected clients
- * @param {Object} trafficData - Traffic event data
  */
-export function broadcastTrafficEvent(trafficData) {
+export function broadcastTrafficEvent(trafficData: Record<string, unknown>): void {
   if (!io) return;
   io.emit('traffic', {
     ...trafficData,

@@ -12,9 +12,39 @@ const __dirname = path.dirname(__filename);
 
 const CONFIG_FILE = path.join(__dirname, '../../runtime-config.json');
 
+export interface AdminAuth {
+  enabled: boolean;
+  username: string;
+  password: string;
+}
+
+export interface CacheRulesConfig {
+  noCachePatterns: string[];
+  cachePatterns: string[];
+  cacheByDefault: boolean;
+  metaTagName: string;
+}
+
+export interface BotRules {
+  allowedBots: string[];
+  blockedBots: string[];
+  renderAllBots: boolean;
+}
+
+export interface RuntimeConfig {
+  adminPath: string;
+  adminAuth: AdminAuth;
+  cacheRules: CacheRulesConfig;
+  botRules: BotRules;
+  cacheTTL: number;
+  maxCacheSize: number;
+}
+
 class ConfigManager {
+  private config: RuntimeConfig | null = null;
+  private defaultConfig: RuntimeConfig;
+
   constructor() {
-    this.config = null;
     this.defaultConfig = {
       adminPath: '/admin',
       adminAuth: {
@@ -38,23 +68,21 @@ class ConfigManager {
           'Slackbot',
         ],
         blockedBots: [],
-        renderAllBots: true, // If true, render for all bots regardless of allowedBots
+        renderAllBots: true,
       },
       cacheTTL: 3600,
-      maxCacheSize: 1000, // Maximum number of cached pages
+      maxCacheSize: 1000,
     };
   }
 
   /**
    * Initialize config file if it doesn't exist
    */
-  async initialize() {
+  async initialize(): Promise<void> {
     try {
       await fs.access(CONFIG_FILE);
-      // File exists, load it
       await this.loadConfig();
     } catch (error) {
-      // File doesn't exist, create with defaults
       console.log('📝 Creating default runtime-config.json');
       await this.saveConfig(this.defaultConfig);
       this.config = this.defaultConfig;
@@ -64,14 +92,14 @@ class ConfigManager {
   /**
    * Load configuration from file
    */
-  async loadConfig() {
+  async loadConfig(): Promise<RuntimeConfig> {
     try {
       const data = await fs.readFile(CONFIG_FILE, 'utf-8');
-      this.config = JSON.parse(data);
+      this.config = JSON.parse(data) as RuntimeConfig;
       console.log('✅ Runtime configuration loaded');
       return this.config;
     } catch (error) {
-      console.error('❌ Error loading runtime config:', error.message);
+      console.error('❌ Error loading runtime config:', (error as Error).message);
       this.config = this.defaultConfig;
       return this.config;
     }
@@ -79,11 +107,9 @@ class ConfigManager {
 
   /**
    * Save configuration to file
-   * @param {object} config - Configuration object
    */
-  async saveConfig(config = this.config) {
+  async saveConfig(config: RuntimeConfig = this.config || this.defaultConfig): Promise<boolean> {
     try {
-      // Validate config before saving
       if (!config || typeof config !== 'object') {
         throw new Error('Invalid configuration object');
       }
@@ -95,7 +121,7 @@ class ConfigManager {
           await fs.writeFile(backupFile, JSON.stringify(this.config, null, 2), 'utf-8');
         }
       } catch (backupError) {
-        console.warn('⚠️  Could not create config backup:', backupError.message);
+        console.warn('⚠️  Could not create config backup:', (backupError as Error).message);
       }
 
       const data = JSON.stringify(config, null, 2);
@@ -104,7 +130,7 @@ class ConfigManager {
       console.log('💾 Runtime configuration saved');
       return true;
     } catch (error) {
-      console.error('❌ Error saving runtime config:', error.message);
+      console.error('❌ Error saving runtime config:', (error as Error).message);
       return false;
     }
   }
@@ -112,29 +138,29 @@ class ConfigManager {
   /**
    * Get current configuration
    */
-  getConfig() {
+  getConfig(): RuntimeConfig {
     return this.config || this.defaultConfig;
   }
 
   /**
    * Update configuration
-   * @param {object} updates - Partial configuration updates
    */
-  async updateConfig(updates) {
-    const newConfig = {
-      ...this.config,
+  async updateConfig(updates: Partial<RuntimeConfig>): Promise<RuntimeConfig> {
+    const currentConfig = this.getConfig();
+    const newConfig: RuntimeConfig = {
+      ...currentConfig,
       ...updates,
       // Deep merge for nested objects
       cacheRules: {
-        ...this.config.cacheRules,
+        ...currentConfig.cacheRules,
         ...(updates.cacheRules || {}),
       },
       botRules: {
-        ...this.config.botRules,
+        ...currentConfig.botRules,
         ...(updates.botRules || {}),
       },
       adminAuth: {
-        ...this.config.adminAuth,
+        ...currentConfig.adminAuth,
         ...(updates.adminAuth || {}),
       },
     };
@@ -145,20 +171,20 @@ class ConfigManager {
 
   /**
    * Add a cache pattern
-   * @param {string} pattern - URL pattern
-   * @param {string} type - 'noCache' or 'cache'
    */
-  async addCachePattern(pattern, type = 'noCache') {
+  async addCachePattern(pattern: string, type: 'noCache' | 'cache' = 'noCache'): Promise<RuntimeConfig> {
     const config = this.getConfig();
 
     if (type === 'noCache') {
       if (!config.cacheRules.noCachePatterns.includes(pattern)) {
         config.cacheRules.noCachePatterns.push(pattern);
       }
-    } else {
+    } else if (type === 'cache') {
       if (!config.cacheRules.cachePatterns.includes(pattern)) {
         config.cacheRules.cachePatterns.push(pattern);
       }
+    } else {
+      throw new Error(`Invalid pattern type: ${type}`);
     }
 
     await this.saveConfig(config);
@@ -167,10 +193,8 @@ class ConfigManager {
 
   /**
    * Remove a cache pattern
-   * @param {string} pattern - URL pattern
-   * @param {string} type - 'noCache' or 'cache'
    */
-  async removeCachePattern(pattern, type = 'noCache') {
+  async removeCachePattern(pattern: string, type: 'noCache' | 'cache' = 'noCache'): Promise<RuntimeConfig> {
     const config = this.getConfig();
 
     if (type === 'noCache') {
@@ -189,16 +213,14 @@ class ConfigManager {
 
   /**
    * Add an allowed bot
-   * @param {string} botName - Bot name
    */
-  async addAllowedBot(botName) {
+  async addAllowedBot(botName: string): Promise<RuntimeConfig> {
     const config = this.getConfig();
 
     if (!config.botRules.allowedBots.includes(botName)) {
       config.botRules.allowedBots.push(botName);
     }
 
-    // Remove from blocked if present
     config.botRules.blockedBots = config.botRules.blockedBots.filter((b) => b !== botName);
 
     await this.saveConfig(config);
@@ -207,16 +229,14 @@ class ConfigManager {
 
   /**
    * Add a blocked bot
-   * @param {string} botName - Bot name
    */
-  async addBlockedBot(botName) {
+  async addBlockedBot(botName: string): Promise<RuntimeConfig> {
     const config = this.getConfig();
 
     if (!config.botRules.blockedBots.includes(botName)) {
       config.botRules.blockedBots.push(botName);
     }
 
-    // Remove from allowed if present
     config.botRules.allowedBots = config.botRules.allowedBots.filter((b) => b !== botName);
 
     await this.saveConfig(config);
@@ -225,9 +245,8 @@ class ConfigManager {
 
   /**
    * Remove a bot from allowed/blocked lists
-   * @param {string} botName - Bot name
    */
-  async removeBot(botName) {
+  async removeBot(botName: string): Promise<RuntimeConfig> {
     const config = this.getConfig();
 
     config.botRules.allowedBots = config.botRules.allowedBots.filter((b) => b !== botName);
@@ -240,25 +259,21 @@ class ConfigManager {
   /**
    * Reset to default configuration
    */
-  async resetToDefaults() {
+  async resetToDefaults(): Promise<RuntimeConfig> {
     await this.saveConfig(this.defaultConfig);
     return this.defaultConfig;
   }
 
   /**
    * Check if a bot should be rendered
-   * @param {string} botName - Bot name
    */
-  shouldRenderBot(botName) {
+  shouldRenderBot(botName: string): boolean {
     const config = this.getConfig();
 
-    // If renderAllBots is true, render for all bots
     if (config.botRules.renderAllBots) {
-      // Unless explicitly blocked
       return !config.botRules.blockedBots.includes(botName);
     }
 
-    // Only render for allowed bots
     return config.botRules.allowedBots.includes(botName);
   }
 }
