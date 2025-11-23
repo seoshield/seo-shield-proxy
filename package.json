@@ -32,7 +32,8 @@
     "ioredis": "^5.8.2",
     "isbot": "^5.1.0",
     "node-cache": "^5.1.2",
-    "puppeteer": "^23.11.1",
+    "puppeteer": "^24.31.0",
+    "puppeteer-cluster": "^0.25.0",
     "socket.io": "^4.7.2"
   },
   "devDependencies": {

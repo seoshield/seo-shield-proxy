@@ -13,6 +13,7 @@ export interface Config {
   CACHE_TYPE: 'memory' | 'redis';
   REDIS_URL: string;
   PUPPETEER_TIMEOUT: number;
+  MAX_CONCURRENT_RENDERS: number;
   NODE_ENV: string;
   NO_CACHE_PATTERNS: string;
   CACHE_PATTERNS: string;
@@ -43,6 +44,9 @@ const config: Config = {
 
   // Puppeteer timeout in milliseconds - default to 30 seconds
   PUPPETEER_TIMEOUT: parseInt(process.env['PUPPETEER_TIMEOUT'] || '30000', 10) || 30000,
+
+  // Maximum concurrent renders - default to 5
+  MAX_CONCURRENT_RENDERS: parseInt(process.env['MAX_CONCURRENT_RENDERS'] || '5', 10) || 5,
 
   // Node environment
   NODE_ENV: process.env['NODE_ENV'] || 'production',
@@ -87,6 +91,7 @@ if (config.CACHE_TYPE === 'redis') {
 }
 console.log(`   CACHE_TTL: ${config.CACHE_TTL}s`);
 console.log(`   PUPPETEER_TIMEOUT: ${config.PUPPETEER_TIMEOUT}ms`);
+console.log(`   MAX_CONCURRENT_RENDERS: ${config.MAX_CONCURRENT_RENDERS}`);
 console.log(`   NODE_ENV: ${config.NODE_ENV}`);
 console.log(`   CACHE_BY_DEFAULT: ${config.CACHE_BY_DEFAULT}`);
 if (config.NO_CACHE_PATTERNS) {
