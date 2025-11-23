@@ -2,38 +2,44 @@ import NodeCache from 'node-cache';
 import config from './config.js';
 
 /**
+ * Cache statistics interface
+ */
+export interface CacheStats {
+  keys: number;
+  hits: number;
+  misses: number;
+  ksize: number;
+  vsize: number;
+}
+
+/**
  * In-memory cache for rendered HTML
- * TTL is configured via CACHE_TTL environment variable
  */
 class Cache {
+  public cache: NodeCache;
+
   constructor() {
     this.cache = new NodeCache({
       stdTTL: config.CACHE_TTL,
-      checkperiod: Math.floor(config.CACHE_TTL * 0.2), // Check for expired keys every 20% of TTL
-      useClones: false, // Don't clone values for better performance
-      deleteOnExpire: true, // Automatically delete expired keys
-      maxKeys: 1000, // Limit number of keys to prevent memory issues
+      checkperiod: Math.floor(config.CACHE_TTL * 0.2),
+      useClones: false,
+      deleteOnExpire: true,
+      maxKeys: 1000,
     });
 
-    // Track cache events
-    this.cache.on('expired', (key) => {
+    this.cache.on('expired', (key: string) => {
       console.log(`🗑️  Cache expired: ${key}`);
     });
 
-    this.cache.on('del', (key) => {
+    this.cache.on('del', (key: string) => {
       console.log(`🗑️  Cache deleted: ${key}`);
     });
 
     console.log(`💾 Cache initialized with TTL: ${config.CACHE_TTL}s, max keys: 1000`);
   }
 
-  /**
-   * Get a value from cache
-   * @param {string} key - Cache key (usually the URL path)
-   * @returns {string|undefined} - Cached HTML or undefined if not found
-   */
-  get(key) {
-    const value = this.cache.get(key);
+  get(key: string): string | undefined {
+    const value = this.cache.get<string>(key);
     if (value) {
       console.log(`✅ Cache HIT: ${key}`);
     } else {
@@ -42,14 +48,7 @@ class Cache {
     return value;
   }
 
-  /**
-   * Set a value in cache
-   * @param {string} key - Cache key (usually the URL path)
-   * @param {string} value - HTML content to cache
-   * @returns {boolean} - Success status
-   */
-  set(key, value) {
-    // Validate inputs
+  set(key: string, value: string): boolean {
     if (!key || typeof key !== 'string') {
       console.error('⚠️  Invalid cache key:', key);
       return false;
@@ -60,13 +59,11 @@ class Cache {
       return false;
     }
 
-    // Don't cache empty responses
     if (value.length === 0) {
       console.warn(`⚠️  Skipping cache for empty response: ${key}`);
       return false;
     }
 
-    // Don't cache very large responses (potential DoS)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (value.length > maxSize) {
       console.warn(`⚠️  Response too large to cache (${(value.length / 1024 / 1024).toFixed(2)} MB): ${key}`);
@@ -82,37 +79,24 @@ class Cache {
       }
       return success;
     } catch (error) {
-      console.error(`❌ Cache SET error for ${key}:`, error.message);
+      console.error(`❌ Cache SET error for ${key}:`, (error as Error).message);
       return false;
     }
   }
 
-  /**
-   * Delete a value from cache
-   * @param {string} key - Cache key to delete
-   * @returns {number} - Number of deleted entries
-   */
-  delete(key) {
+  delete(key: string): number {
     return this.cache.del(key);
   }
 
-  /**
-   * Clear all cache
-   */
-  flush() {
+  flush(): void {
     this.cache.flushAll();
     console.log('🗑️  Cache flushed');
   }
 
-  /**
-   * Get cache statistics
-   * @returns {object} - Cache stats
-   */
-  getStats() {
+  getStats(): CacheStats {
     return this.cache.getStats();
   }
 }
 
-// Export singleton instance
 const cacheInstance = new Cache();
 export default cacheInstance;
