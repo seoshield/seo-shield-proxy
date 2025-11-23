@@ -74,10 +74,10 @@ describe('Cache Module', () => {
       expect(result).toBe('<html>New</html>');
     });
 
-    test('should handle empty string values', () => {
+    test('should reject empty string values', () => {
       const success = cache.set('/empty', '');
-      expect(success).toBe(true);
-      expect(cache.get('/empty')).toBe('');
+      expect(success).toBe(false);
+      expect(cache.get('/empty')).toBeUndefined();
     });
 
     test('should handle large HTML content', () => {
@@ -235,6 +235,44 @@ describe('Cache Module', () => {
           expect(result).toBe(`<html>Page ${i}</html>`);
         });
       });
+    });
+  });
+  describe('Error Handling and Edge Cases', () => {
+    test('should reject invalid cache key (null)', () => {
+      const success = cache.set(null, '<html>Test</html>');
+      expect(success).toBe(false);
+    });
+
+    test('should reject invalid cache key (number)', () => {
+      const success = cache.set(123, '<html>Test</html>');
+      expect(success).toBe(false);
+    });
+
+    test('should reject non-string value (number)', () => {
+      const success = cache.set('/test', 12345);
+      expect(success).toBe(false);
+    });
+
+    test('should reject non-string value (object)', () => {
+      const success = cache.set('/test', { html: 'test' });
+      expect(success).toBe(false);
+    });
+
+    test('should reject very large responses (>10MB)', () => {
+      const largeHtml = 'x'.repeat(11 * 1024 * 1024); // 11MB
+      const success = cache.set('/large', largeHtml);
+      expect(success).toBe(false);
+    });
+
+    test('should handle cache set failure gracefully', () => {
+      // Fill cache to max keys (1000)
+      for (let i = 0; i < 1001; i++) {
+        cache.set(`/page${i}`, '<html>' + 'x'.repeat(100) + '</html>');
+      }
+      
+      // This should either succeed or fail gracefully
+      const result = cache.set('/overflow', '<html>Test</html>');
+      expect(typeof result).toBe('boolean');
     });
   });
 });

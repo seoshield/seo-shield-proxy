@@ -493,3 +493,23 @@ describe('CacheRules Module', () => {
     });
   });
 });
+
+  describe('Invalid Meta Tag Name Handling', () => {
+    test('should handle invalid meta tag name with special characters', () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      
+      const rules = new CacheRules({
+        NO_CACHE_PATTERNS: '',
+        CACHE_PATTERNS: '',
+        CACHE_BY_DEFAULT: 'true',
+        CACHE_META_TAG: 'invalid<>tag',
+      });
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Invalid meta tag name')
+      );
+      expect(rules.metaTagName).toBe('x-seo-shield-cache');
+      
+      consoleErrorSpy.mockRestore();
+    });
+  });

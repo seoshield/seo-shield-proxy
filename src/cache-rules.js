@@ -14,7 +14,7 @@ class CacheRules {
     // Default behavior when URL doesn't match any pattern
     // true = cache everything by default
     // false = cache nothing by default (only explicit patterns)
-    this.cacheByDefault = Boolean(config.CACHE_BY_DEFAULT);
+    this.cacheByDefault = config.CACHE_BY_DEFAULT === 'false' ? false : Boolean(config.CACHE_BY_DEFAULT);
 
     // Meta tag name to check in rendered HTML
     this.metaTagName = config.CACHE_META_TAG || 'x-seo-shield-cache';

@@ -55,14 +55,14 @@ class Cache {
       return false;
     }
 
-    if (!value || typeof value !== 'string') {
-      console.error('⚠️  Invalid cache value for key:', key);
+    if (typeof value !== 'string') {
+      console.error('⚠️  Invalid cache value type for key:', key);
       return false;
     }
 
-    // Don't cache empty or very small responses (likely errors)
-    if (value.length < 100) {
-      console.warn(`⚠️  Skipping cache for small response (${value.length} bytes): ${key}`);
+    // Don't cache empty responses
+    if (value.length === 0) {
+      console.warn(`⚠️  Skipping cache for empty response: ${key}`);
       return false;
     }
 
