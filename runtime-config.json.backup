@@ -7,17 +7,17 @@
   },
   "cacheRules": {
     "noCachePatterns": [
-      "/checkout",
-      "/cart",
       "/admin/*",
       "/api/*",
+      "/profile",
+      "/test",
       "/test?query=value",
       "",
       "/test/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-      "/test",
       "/new2"
     ],
     "cachePatterns": [
+      "/blog/*",
       "/test.*"
     ],
     "cacheByDefault": true,
@@ -25,19 +25,22 @@
   },
   "botRules": {
     "allowedBots": [
-      "Googlebot",
-      "Bingbot",
       "Twitterbot",
       "Facebookbot",
       "LinkedInBot",
       "Slackbot",
+      "MyCustomBot",
+      "TestBot",
+      "NewBot",
+      "TestBotForRender",
       "My-Custom/Bot 1.0"
     ],
     "blockedBots": [
+      "SpamBot",
       "BadBot"
     ],
-    "renderAllBots": false
+    "renderAllBots": true
   },
-  "cacheTTL": 1800,
-  "maxCacheSize": 500
+  "cacheTTL": 3600,
+  "maxCacheSize": 1000
 }

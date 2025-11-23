@@ -209,7 +209,7 @@ describe('Metrics Collector', () => {
     test('should detect Telegram bot', () => {
       metricsCollector.recordRequest({
         path: '/page1',
-        userAgent: 'telegrambot (like TwitterBot)',
+        userAgent: 'TelegramBot/1.0',
         isBot: true,
         action: 'ssr',
         cacheStatus: 'MISS',

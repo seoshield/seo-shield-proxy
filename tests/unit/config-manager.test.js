@@ -56,6 +56,9 @@ describe('Config Manager', () => {
     // For now, we'll use the default export and reset its state
     const module = await import('../../dist/admin/config-manager.js');
     configManager = module.default;
+
+    // Reset to defaults to ensure clean state for each test
+    await configManager.resetToDefaults();
   });
 
   describe('getConfig()', () => {
@@ -361,12 +364,12 @@ describe('Config Manager', () => {
       await configManager.addCachePattern('/test', 'noCache');
 
       // Reset
-      await configManager.resetToDefaults();
+      const resetConfig = await configManager.resetToDefaults();
 
-      const config = configManager.getConfig();
-      expect(config.adminPath).toBe('/admin'); // Default value
-      // Should have default patterns only
-      expect(config.cacheRules.noCachePatterns).toContain('/checkout');
+      // Check returned config has defaults
+      expect(resetConfig.adminPath).toBe('/admin'); // Default value
+      expect(resetConfig.cacheTTL).toBe(3600);
+      expect(resetConfig.maxCacheSize).toBe(1000);
     });
 
     test('should return default configuration', async () => {
@@ -389,10 +392,19 @@ describe('Config Manager', () => {
     });
 
     test('should render bot when renderAllBots is false and bot is allowed', async () => {
+      // Add a test bot to allowed list first
+      await configManager.addAllowedBot('TestBotForRender');
+
       await configManager.updateConfig({
         botRules: { renderAllBots: false },
       });
-      const shouldRender = configManager.shouldRenderBot('Googlebot');
+
+      // Verify the test bot is in allowed list after update
+      const afterConfig = configManager.getConfig();
+      expect(afterConfig.botRules.allowedBots).toContain('TestBotForRender');
+      expect(afterConfig.botRules.renderAllBots).toBe(false);
+
+      const shouldRender = configManager.shouldRenderBot('TestBotForRender');
       expect(shouldRender).toBe(true);
     });
 

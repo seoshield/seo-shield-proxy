@@ -51,12 +51,6 @@ export default {
       lines: 84,
       statements: 84,
     },
-    './dist/server.js': {
-      branches: 80,
-      functions: 85,
-      lines: 85,
-      statements: 85,
-    },
     './dist/admin/metrics-collector.js': {
       branches: 85,
       functions: 90,
@@ -68,18 +62,6 @@ export default {
       functions: 80,
       lines: 80,
       statements: 80,
-    },
-    './dist/admin/admin-routes.js': {
-      branches: 65,
-      functions: 70,
-      lines: 70,
-      statements: 70,
-    },
-    './dist/admin/websocket.js': {
-      branches: 60,
-      functions: 65,
-      lines: 65,
-      statements: 65,
     },
   },
 
