@@ -19,31 +19,50 @@ const router = express.Router();
  * Basic Authentication Middleware
  */
 function authenticate(req, res, next) {
-  const config = configManager.getConfig();
+  try {
+    const config = configManager.getConfig();
 
-  if (!config.adminAuth.enabled) {
-    return next();
-  }
+    // Skip auth if disabled
+    if (!config?.adminAuth?.enabled) {
+      return next();
+    }
 
-  const authHeader = req.headers.authorization;
+    const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith('Basic ')) {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Admin Panel"');
-    return res.status(401).json({ error: 'Authentication required' });
-  }
+    if (!authHeader || !authHeader.startsWith('Basic ')) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="Admin Panel"');
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
-  const base64Credentials = authHeader.slice(6);
-  const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
-  const [username, password] = credentials.split(':');
+    try {
+      const base64Credentials = authHeader.slice(6);
+      const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+      const [username, password] = credentials.split(':', 2); // Limit split to 2 parts
 
-  if (
-    username === config.adminAuth.username &&
-    password === config.adminAuth.password
-  ) {
-    next();
-  } else {
-    res.setHeader('WWW-Authenticate', 'Basic realm="Admin Panel"');
-    res.status(401).json({ error: 'Invalid credentials' });
+      // Validate credentials exist
+      if (!username || !password) {
+        res.setHeader('WWW-Authenticate', 'Basic realm="Admin Panel"');
+        return res.status(401).json({ error: 'Invalid credentials format' });
+      }
+
+      // Check credentials (use constant-time comparison in production)
+      if (
+        username === config.adminAuth.username &&
+        password === config.adminAuth.password
+      ) {
+        return next();
+      } else {
+        res.setHeader('WWW-Authenticate', 'Basic realm="Admin Panel"');
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+    } catch (decodeError) {
+      console.error('Auth decode error:', decodeError);
+      res.setHeader('WWW-Authenticate', 'Basic realm="Admin Panel"');
+      return res.status(401).json({ error: 'Invalid authentication format' });
+    }
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return res.status(500).json({ error: 'Authentication system error' });
   }
 }
 

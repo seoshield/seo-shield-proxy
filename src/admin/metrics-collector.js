@@ -5,9 +5,9 @@
 
 class MetricsCollector {
   constructor() {
-    // Traffic log (rolling window - last 1000 requests)
+    // Traffic log (rolling window - configurable max size)
     this.trafficLog = [];
-    this.maxLogSize = 1000;
+    this.maxLogSize = parseInt(process.env.METRICS_LOG_SIZE, 10) || 1000;
 
     // Aggregate statistics
     this.stats = {
@@ -23,14 +23,18 @@ class MetricsCollector {
       errors: 0,
     };
 
-    // Bot breakdown
+    // Bot breakdown (limit to prevent unbounded growth)
     this.botStats = {};
+    this.maxBotTypes = 100;
 
-    // URL statistics
+    // URL statistics (limit to prevent unbounded growth)
     this.urlStats = {};
+    this.maxUrls = 500;
 
     // Start time
     this.startTime = Date.now();
+
+    console.log(`📊 Metrics collector initialized (max log: ${this.maxLogSize}, max URLs: ${this.maxUrls})`);
   }
 
   /**
@@ -59,9 +63,14 @@ class MetricsCollector {
     if (data.isBot) {
       this.stats.botRequests++;
 
-      // Track bot types
+      // Track bot types (with limit)
       const botName = this.extractBotName(data.userAgent);
-      this.botStats[botName] = (this.botStats[botName] || 0) + 1;
+      if (Object.keys(this.botStats).length < this.maxBotTypes || this.botStats[botName]) {
+        this.botStats[botName] = (this.botStats[botName] || 0) + 1;
+      } else {
+        // Consolidate into "Other Bots" when limit reached
+        this.botStats['Other Bots'] = (this.botStats['Other Bots'] || 0) + 1;
+      }
     } else {
       this.stats.humanRequests++;
     }
@@ -86,8 +95,19 @@ class MetricsCollector {
       this.stats.errors++;
     }
 
-    // URL statistics
+    // URL statistics (with limit)
     if (!this.urlStats[data.path]) {
+      // Check if we've reached the limit
+      const urlCount = Object.keys(this.urlStats).length;
+      if (urlCount >= this.maxUrls) {
+        // Remove the least recently accessed URL
+        const entries = Object.entries(this.urlStats);
+        entries.sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+        const oldestUrl = entries[0][0];
+        delete this.urlStats[oldestUrl];
+        console.log(`📊 URL stats limit reached (${this.maxUrls}), removed oldest: ${oldestUrl}`);
+      }
+
       this.urlStats[data.path] = {
         count: 0,
         cacheHits: 0,

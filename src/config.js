@@ -43,7 +43,7 @@ const config = {
   // Default caching behavior when URL doesn't match any pattern
   // 'true' = cache everything by default (recommended for content sites)
   // 'false' = cache nothing by default, only explicit CACHE_PATTERNS
-  CACHE_BY_DEFAULT: process.env.CACHE_BY_DEFAULT || 'true',
+  CACHE_BY_DEFAULT: process.env.CACHE_BY_DEFAULT !== 'false',
 
   // Meta tag name that SPA can use to control caching
   // SPA can add: <meta name="x-seo-shield-cache" content="false">

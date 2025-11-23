@@ -56,14 +56,26 @@ class BrowserManager {
         '--disable-software-rasterizer',
         '--disable-extensions',
         '--no-first-run',
-        '--no-zygote',
-        '--single-process', // Required for some Docker environments
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-breakpad',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        '--disable-renderer-backgrounding',
+        '--enable-features=NetworkService,NetworkServiceInProcess',
+        '--force-color-profile=srgb',
+        '--hide-scrollbars',
+        '--metrics-recording-only',
+        '--mute-audio',
       ],
     };
 
-    // In development, use different args
-    if (config.NODE_ENV === 'development') {
-      launchOptions.headless = 'new';
+    // Only use single-process in development or when explicitly set
+    if (config.NODE_ENV === 'development' || process.env.PUPPETEER_SINGLE_PROCESS === 'true') {
+      launchOptions.args.push('--single-process');
+      console.log('⚠️  Using single-process mode (not recommended for production)');
     }
 
     const browser = await puppeteer.launch(launchOptions);
@@ -106,34 +118,69 @@ class BrowserManager {
       // Enable request interception for performance
       await page.setRequestInterception(true);
 
-      // Block unnecessary resources
+      // Block unnecessary resources for performance
       page.on('request', (request) => {
         const resourceType = request.resourceType();
+        // Block images, stylesheets, fonts, media for faster rendering
+        // Keep scripts, xhr, fetch for dynamic content
         const blockedTypes = ['image', 'stylesheet', 'font', 'media'];
 
-        if (blockedTypes.includes(resourceType)) {
-          request.abort();
-        } else {
-          request.continue();
+        try {
+          if (blockedTypes.includes(resourceType)) {
+            request.abort('blockedbyclient');
+          } else {
+            request.continue();
+          }
+        } catch (error) {
+          // Request may already be handled, ignore
+          console.debug('Request interception error (ignoring):', error.message);
         }
       });
 
       console.log(`🌐 Rendering: ${url}`);
 
-      // Navigate to the URL and wait for network idle
-      await page.goto(url, {
+      // Navigate to the URL with retry logic
+      const navigationOptions = {
         waitUntil: 'networkidle0', // Wait until network is idle (no requests for 500ms)
         timeout: config.PUPPETEER_TIMEOUT,
-      });
+      };
 
-      // Get the rendered HTML
-      const html = await page.content();
+      let html;
+      try {
+        await page.goto(url, navigationOptions);
+
+        // Get the rendered HTML
+        html = await page.content();
+      } catch (navError) {
+        // If networkidle0 fails, try with networkidle2 (more lenient)
+        console.warn(`⚠️  networkidle0 failed, retrying with networkidle2: ${navError.message}`);
+        try {
+          await page.goto(url, {
+            ...navigationOptions,
+            waitUntil: 'networkidle2',
+          });
+          html = await page.content();
+        } catch (retryError) {
+          // Last resort: try with domcontentloaded
+          console.warn(`⚠️  networkidle2 failed, falling back to domcontentloaded: ${retryError.message}`);
+          await page.goto(url, {
+            ...navigationOptions,
+            waitUntil: 'domcontentloaded',
+          });
+          // Wait a bit for potential async content
+          await page.waitForTimeout(2000);
+          html = await page.content();
+        }
+      }
 
       console.log(`✅ Rendered successfully: ${url} (${(html.length / 1024).toFixed(2)} KB)`);
 
       return html;
     } catch (error) {
       console.error(`❌ Rendering failed for ${url}:`, error.message);
+      // Include more context in error
+      error.url = url;
+      error.renderError = true;
       throw error;
     } finally {
       // CRITICAL: Always close the page to prevent memory leaks
