@@ -16,6 +16,7 @@ export interface Config {
   CACHE_PATTERNS: string;
   CACHE_BY_DEFAULT: boolean;
   CACHE_META_TAG: string;
+  ADMIN_PASSWORD: string;
 }
 
 /**
@@ -49,6 +50,9 @@ const config: Config = {
 
   // Meta tag name for cache control
   CACHE_META_TAG: process.env['CACHE_META_TAG'] || 'x-seo-shield-cache',
+
+  // Admin panel password
+  ADMIN_PASSWORD: process.env['ADMIN_PASSWORD'] || 'admin123',
 };
 
 // Validate required configuration
