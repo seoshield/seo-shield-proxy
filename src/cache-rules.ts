@@ -1,25 +1,37 @@
+import { Config } from './config.js';
+
+export interface CacheDecision {
+  shouldRender: boolean;
+  shouldCache: boolean;
+  reason: string;
+}
+
+export interface RulesSummary {
+  noCachePatterns: string[];
+  cachePatterns: string[];
+  cacheByDefault: boolean;
+  metaTagName: string;
+}
+
 /**
  * Cache Rules Manager
- * Handles flexible caching logic based on URL patterns and meta tags
  */
-
 class CacheRules {
-  constructor(config) {
-    // Parse NO_CACHE_PATTERNS - These URLs should NEVER be cached or rendered
-    this.noCachePatterns = this.parsePatterns(config.NO_CACHE_PATTERNS);
+  private noCachePatterns: RegExp[];
+  private cachePatterns: RegExp[];
+  private cacheByDefault: boolean;
+  private metaTagName: string;
 
-    // Parse CACHE_PATTERNS - Only these URLs should be cached
-    this.cachePatterns = this.parsePatterns(config.CACHE_PATTERNS);
+  constructor(config: Config | { CACHE_BY_DEFAULT: string | boolean; [key: string]: unknown }) {
+    this.noCachePatterns = this.parsePatterns((config as Config).NO_CACHE_PATTERNS || '');
+    this.cachePatterns = this.parsePatterns((config as Config).CACHE_PATTERNS || '');
 
-    // Default behavior when URL doesn't match any pattern
-    // true = cache everything by default
-    // false = cache nothing by default (only explicit patterns)
-    this.cacheByDefault = Boolean(config.CACHE_BY_DEFAULT);
+    // Handle both boolean and string values for CACHE_BY_DEFAULT
+    const cacheByDefault = config.CACHE_BY_DEFAULT;
+    this.cacheByDefault = cacheByDefault === 'false' ? false : Boolean(cacheByDefault);
 
-    // Meta tag name to check in rendered HTML
-    this.metaTagName = config.CACHE_META_TAG || 'x-seo-shield-cache';
+    this.metaTagName = (config as Config).CACHE_META_TAG || 'x-seo-shield-cache';
 
-    // Validate meta tag name (should be safe for regex)
     if (!/^[a-zA-Z0-9-_]+$/.test(this.metaTagName)) {
       console.error(`⚠️  Invalid meta tag name: ${this.metaTagName}, using default`);
       this.metaTagName = 'x-seo-shield-cache';
@@ -32,12 +44,7 @@ class CacheRules {
     console.log(`   Meta tag name: ${this.metaTagName}`);
   }
 
-  /**
-   * Parse comma-separated patterns into regex array
-   * @param {string} patterns - Comma-separated patterns
-   * @returns {Array<RegExp>} - Array of regex patterns
-   */
-  parsePatterns(patterns) {
+  private parsePatterns(patterns: string): RegExp[] {
     if (!patterns || typeof patterns !== 'string' || patterns.trim() === '') {
       return [];
     }
@@ -48,47 +55,29 @@ class CacheRules {
       .filter((p) => p.length > 0)
       .map((p) => {
         try {
-          // If pattern starts and ends with /, treat as regex
           if (p.startsWith('/') && p.endsWith('/') && p.length > 2) {
             const regexPattern = p.slice(1, -1);
-            // Validate regex before creating
             const regex = new RegExp(regexPattern);
-            // Test the regex with a simple string to ensure it's valid
             regex.test('/test');
             return regex;
           }
-          // Otherwise, escape special chars and use as literal match with wildcards
-          // Convert * to .* for wildcard matching
           const escaped = p
             .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
             .replace(/\*/g, '.*');
           return new RegExp(`^${escaped}$`);
         } catch (error) {
-          console.error(`⚠️  Invalid pattern '${p}':`, error.message);
+          console.error(`⚠️  Invalid pattern '${p}':`, (error as Error).message);
           return null;
         }
       })
-      .filter((r) => r !== null);
+      .filter((r): r is RegExp => r !== null);
   }
 
-  /**
-   * Check if URL matches any pattern in the array
-   * @param {string} url - URL to check
-   * @param {Array<RegExp>} patterns - Array of regex patterns
-   * @returns {boolean} - True if matches
-   */
-  matchesAny(url, patterns) {
+  private matchesAny(url: string, patterns: RegExp[]): boolean {
     return patterns.some((pattern) => pattern.test(url));
   }
 
-  /**
-   * Determine if a URL should be cached based on patterns
-   * This does NOT check meta tags (that happens after rendering)
-   * @param {string} url - Request URL path
-   * @returns {object} - { shouldCache: boolean, reason: string, shouldRender: boolean }
-   */
-  shouldCacheUrl(url) {
-    // PRIORITY 1: NO_CACHE patterns - Never cache, never render
+  shouldCacheUrl(url: string): CacheDecision {
     if (this.matchesAny(url, this.noCachePatterns)) {
       return {
         shouldRender: false,
@@ -97,7 +86,6 @@ class CacheRules {
       };
     }
 
-    // PRIORITY 2: CACHE patterns - Explicitly cacheable
     if (this.cachePatterns.length > 0) {
       if (this.matchesAny(url, this.cachePatterns)) {
         return {
@@ -106,8 +94,6 @@ class CacheRules {
           reason: 'CACHE pattern match',
         };
       } else {
-        // CACHE patterns defined but URL doesn't match any
-        // Always render to allow meta tag check
         return {
           shouldRender: true,
           shouldCache: this.cacheByDefault,
@@ -118,7 +104,6 @@ class CacheRules {
       }
     }
 
-    // PRIORITY 3: Default behavior (no patterns defined)
     return {
       shouldRender: true,
       shouldCache: this.cacheByDefault,
@@ -126,15 +111,7 @@ class CacheRules {
     };
   }
 
-  /**
-   * Check rendered HTML for meta tag that controls caching
-   * Meta tag example: <meta name="x-seo-shield-cache" content="false">
-   * @param {string} html - Rendered HTML content
-   * @returns {boolean} - True if should cache, False if meta tag says no
-   */
-  shouldCacheHtml(html) {
-    // Look for meta tag in the HTML
-    // Allow zero or more spaces between attributes
+  shouldCacheHtml(html: string): boolean {
     const metaRegex = new RegExp(
       `<meta\\s+name=["']${this.metaTagName}["']\\s*content=["'](true|false)["']\\s*/?>`,
       'i'
@@ -142,7 +119,7 @@ class CacheRules {
 
     const match = html.match(metaRegex);
 
-    if (match) {
+    if (match && match[1]) {
       const shouldCache = match[1].toLowerCase() === 'true';
       console.log(
         `🏷️  Meta tag detected: ${this.metaTagName}="${match[1]}" → ${shouldCache ? 'CACHE' : 'NO CACHE'}`
@@ -150,21 +127,12 @@ class CacheRules {
       return shouldCache;
     }
 
-    // No meta tag found - default to true (cache)
     return true;
   }
 
-  /**
-   * Main decision method - combines URL patterns and meta tag logic
-   * Call this AFTER rendering to make final cache decision
-   * @param {string} url - Request URL
-   * @param {string} html - Rendered HTML (optional, if already rendered)
-   * @returns {object} - Complete caching decision
-   */
-  getCacheDecision(url, html = null) {
+  getCacheDecision(url: string, html: string | null = null): CacheDecision {
     const urlDecision = this.shouldCacheUrl(url);
 
-    // If URL rules say don't even render, respect that
     if (!urlDecision.shouldRender) {
       return {
         shouldRender: false,
@@ -173,7 +141,6 @@ class CacheRules {
       };
     }
 
-    // If we have HTML, check for meta tag override
     if (html) {
       const metaAllowsCache = this.shouldCacheHtml(html);
       if (!metaAllowsCache) {
@@ -188,11 +155,7 @@ class CacheRules {
     return urlDecision;
   }
 
-  /**
-   * Get cache statistics and current rules
-   * @returns {object} - Rules summary
-   */
-  getRulesSummary() {
+  getRulesSummary(): RulesSummary {
     return {
       noCachePatterns: this.noCachePatterns.map((r) => r.source),
       cachePatterns: this.cachePatterns.map((r) => r.source),

@@ -135,7 +135,7 @@ describe('Config Module', () => {
 
     test('should use default CACHE_BY_DEFAULT (true)', async () => {
       const { default: config } = await import('../../src/config.js');
-      expect(config.CACHE_BY_DEFAULT).toBe('true');
+      expect(config.CACHE_BY_DEFAULT).toBe(true);
     });
 
     test('should use default CACHE_META_TAG', async () => {
@@ -229,7 +229,7 @@ describe('Config Module', () => {
       };
 
       const { default: config } = await import('../../src/config.js');
-      expect(config.CACHE_BY_DEFAULT).toBe('false');
+      expect(config.CACHE_BY_DEFAULT).toBe(false);
     });
 
     test('should accept custom CACHE_META_TAG', async () => {

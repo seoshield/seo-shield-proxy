@@ -1,18 +1,22 @@
-import express from 'express';
-import { createServer } from 'http';
-import { createProxyMiddleware } from 'http-proxy-middleware';
+import express, { Request, Response, NextFunction } from 'express';
+import { createServer, Server as HttpServer } from 'http';
+import { createProxyMiddleware, RequestHandler } from 'http-proxy-middleware';
 import { isbot } from 'isbot';
 import config from './config.js';
 import cache from './cache.js';
 import browserManager from './browser.js';
 import CacheRules from './cache-rules.js';
+// @ts-ignore - Will be converted to TypeScript
 import adminRoutes from './admin/admin-routes.js';
+// @ts-ignore - Will be converted to TypeScript
 import metricsCollector from './admin/metrics-collector.js';
+// @ts-ignore - Will be converted to TypeScript
 import configManager from './admin/config-manager.js';
+// @ts-ignore - Will be converted to TypeScript
 import { initializeWebSocket } from './admin/websocket.js';
 
 const app = express();
-const httpServer = createServer(app);
+const httpServer: HttpServer = createServer(app);
 
 // Initialize cache rules
 const cacheRules = new CacheRules(config);
@@ -24,93 +28,66 @@ try {
   console.log(`🔧 Admin panel mounted at: ${adminPath}`);
   app.use(adminPath, adminRoutes);
 } catch (error) {
-  console.error('⚠️  Failed to mount admin panel:', error.message);
-  // Continue without admin panel
+  console.error('⚠️  Failed to mount admin panel:', (error as Error).message);
 }
 
 /**
- * Static asset extensions that should always be proxied
- * (never rendered with Puppeteer)
+ * Static asset extensions
  */
 const STATIC_EXTENSIONS = [
-  '.js',
-  '.css',
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.svg',
-  '.webp',
-  '.ico',
-  '.woff',
-  '.woff2',
-  '.ttf',
-  '.eot',
-  '.otf',
-  '.json',
-  '.xml',
-  '.txt',
-  '.pdf',
-  '.mp4',
-  '.webm',
-  '.mp3',
-  '.wav',
+  '.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf', '.json', '.xml', '.txt',
+  '.pdf', '.mp4', '.webm', '.mp3', '.wav',
 ];
 
-/**
- * Check if the request is for a static asset
- * @param {string} path - Request path
- * @returns {boolean} - True if static asset
- */
-function isStaticAsset(path) {
+function isStaticAsset(path: string): boolean {
   return STATIC_EXTENSIONS.some((ext) => path.toLowerCase().endsWith(ext));
 }
 
 /**
- * Proxy configuration for forwarding requests to the target SPA
+ * Proxy configuration
  */
-const proxyMiddleware = createProxyMiddleware({
+const proxyMiddleware: RequestHandler = createProxyMiddleware({
   target: config.TARGET_URL,
   changeOrigin: true,
-  ws: true, // Enable WebSocket proxying
+  ws: true,
   followRedirects: true,
-  onProxyReq: (proxyReq, req) => {
-    // Forward the original host header
-    proxyReq.setHeader('X-Forwarded-Host', req.headers.host);
+  // @ts-ignore - proxy middleware types
+  onProxyReq: (proxyReq: any, req: any) => {
+    proxyReq.setHeader('X-Forwarded-Host', req.headers.host || '');
     proxyReq.setHeader('X-Forwarded-Proto', req.protocol);
   },
-  onError: (err, req, res) => {
+  // @ts-ignore - proxy middleware types
+  onError: (err: any, _req: any, res: any) => {
     console.error('❌ Proxy error:', err.message);
-    res.status(502).send('Bad Gateway: Unable to reach target application');
+    if (typeof res.status === 'function') {
+      res.status(502).send('Bad Gateway: Unable to reach target application');
+    }
   },
 });
 
 /**
- * Main middleware - Bot detection and SSR logic
+ * Main middleware - Bot detection and SSR
  */
-app.use(async (req, res, next) => {
+app.use(async (req: Request, res: Response, next: NextFunction) => {
   const userAgent = req.headers['user-agent'] || '';
   const requestPath = req.path;
 
-  // Validate and sanitize URL construction
-  let fullUrl;
+  let fullUrl: string;
   try {
     const targetUrl = new URL(config.TARGET_URL);
     fullUrl = `${targetUrl.origin}${req.url}`;
   } catch (error) {
-    console.error('❌ Invalid TARGET_URL configuration:', error.message);
+    console.error('❌ Invalid TARGET_URL configuration:', (error as Error).message);
     return res.status(500).send('Server configuration error');
   }
 
-  // Log incoming request (truncate very long user agents)
   const uaPreview = userAgent.length > 100 ? `${userAgent.substring(0, 97)}...` : userAgent;
   console.log(`📥 ${req.method} ${requestPath} - UA: ${uaPreview}`);
 
-  // 1. Check if it's a static asset - always proxy
+  // 1. Static assets - proxy directly
   if (isStaticAsset(requestPath)) {
     console.log(`📦 Static asset detected: ${requestPath} - Proxying directly`);
-
-    // Record metrics
     metricsCollector.recordRequest({
       path: requestPath,
       userAgent,
@@ -118,18 +95,13 @@ app.use(async (req, res, next) => {
       action: 'static',
       cacheStatus: null,
     });
-
     return proxyMiddleware(req, res, next);
   }
 
-  // 2. Check if it's a bot
+  // 2. Human users - proxy directly
   const isBotRequest = isbot(userAgent);
-
   if (!isBotRequest) {
-    // HUMAN USER - Proxy directly to the SPA
     console.log(`👤 Human user detected - Proxying to ${config.TARGET_URL}`);
-
-    // Record metrics
     metricsCollector.recordRequest({
       path: requestPath,
       userAgent,
@@ -137,22 +109,17 @@ app.use(async (req, res, next) => {
       action: 'proxy',
       cacheStatus: null,
     });
-
     return proxyMiddleware(req, res, next);
   }
 
-  // 3. BOT DETECTED - Check cache rules
+  // 3. Bot detected - check cache rules
   console.log(`🤖 Bot detected: ${userAgent.substring(0, 80)}`);
 
-  // Check if this URL should be rendered based on patterns
   const urlDecision = cacheRules.shouldCacheUrl(req.url);
   console.log(`📋 Cache decision for ${requestPath}: ${urlDecision.reason}`);
 
-  // If URL pattern says don't render (e.g., NO_CACHE pattern), proxy directly
   if (!urlDecision.shouldRender) {
     console.log(`⏩ Skipping SSR based on rules - Proxying to ${config.TARGET_URL}`);
-
-    // Record metrics
     metricsCollector.recordRequest({
       path: requestPath,
       userAgent,
@@ -161,14 +128,12 @@ app.use(async (req, res, next) => {
       cacheStatus: null,
       rule: urlDecision.reason,
     });
-
     return proxyMiddleware(req, res, next);
   }
 
   try {
-    // Check cache first (if URL pattern allows caching)
     const cacheKey = req.url;
-    let cachedHtml = null;
+    let cachedHtml: string | undefined = undefined;
 
     if (urlDecision.shouldCache) {
       cachedHtml = cache.get(cacheKey);
@@ -176,8 +141,6 @@ app.use(async (req, res, next) => {
 
     if (cachedHtml) {
       console.log(`🚀 Serving cached HTML for: ${requestPath}`);
-
-      // Record metrics
       metricsCollector.recordRequest({
         path: requestPath,
         userAgent,
@@ -186,7 +149,6 @@ app.use(async (req, res, next) => {
         cacheStatus: 'HIT',
         rule: urlDecision.reason,
       });
-
       res.set('Content-Type', 'text/html; charset=utf-8');
       res.set('X-Rendered-By', 'SEO-Shield-Proxy');
       res.set('X-Cache-Status', 'HIT');
@@ -194,15 +156,12 @@ app.use(async (req, res, next) => {
       return res.send(cachedHtml);
     }
 
-    // Cache miss - Render with Puppeteer
+    // Render with Puppeteer
     console.log(`🎨 Rendering with Puppeteer: ${fullUrl}`);
-
     const html = await browserManager.render(fullUrl);
 
-    // Check for meta tag override in rendered HTML
     const finalDecision = cacheRules.getCacheDecision(req.url, html);
 
-    // Store in cache if allowed by both URL pattern and meta tag
     if (finalDecision.shouldCache) {
       cache.set(cacheKey, html);
       console.log(`💾 HTML cached for: ${requestPath}`);
@@ -210,7 +169,6 @@ app.use(async (req, res, next) => {
       console.log(`⚠️  HTML NOT cached: ${finalDecision.reason}`);
     }
 
-    // Record metrics
     metricsCollector.recordRequest({
       path: requestPath,
       userAgent,
@@ -221,7 +179,6 @@ app.use(async (req, res, next) => {
       cached: finalDecision.shouldCache,
     });
 
-    // Send response
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.set('X-Rendered-By', 'SEO-Shield-Proxy');
     res.set('X-Cache-Status', 'MISS');
@@ -229,35 +186,29 @@ app.use(async (req, res, next) => {
     res.set('X-Cache-Allowed', finalDecision.shouldCache ? 'true' : 'false');
     res.send(html);
   } catch (error) {
-    // If rendering fails, fallback to proxying
-    console.error(`❌ SSR failed for ${requestPath}, falling back to proxy:`, error.message);
+    console.error(`❌ SSR failed for ${requestPath}, falling back to proxy:`, (error as Error).message);
 
-    // Record metrics
     metricsCollector.recordRequest({
       path: requestPath,
       userAgent,
       isBot: true,
       action: 'proxy',
       cacheStatus: null,
-      error: error.message,
+      error: (error as Error).message,
     });
 
-    // Try to proxy the request as fallback
     try {
       return proxyMiddleware(req, res, next);
     } catch (proxyError) {
-      console.error('❌ Fallback proxy also failed:', proxyError.message);
-
-      // Record fatal error
+      console.error('❌ Fallback proxy also failed:', (proxyError as Error).message);
       metricsCollector.recordRequest({
         path: requestPath,
         userAgent,
         isBot: true,
         action: 'error',
         cacheStatus: null,
-        error: `${error.message} + ${proxyError.message}`,
+        error: `${(error as Error).message} + ${(proxyError as Error).message}`,
       });
-
       res.status(500).send('Internal Server Error: Unable to render or proxy the page');
     }
   }
@@ -266,7 +217,7 @@ app.use(async (req, res, next) => {
 /**
  * Health check endpoint
  */
-app.get('/health', (req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
   try {
     const stats = cache.getStats();
     const memoryUsage = process.memoryUsage();
@@ -276,10 +227,10 @@ app.get('/health', (req, res) => {
       uptime: Math.floor(process.uptime()),
       timestamp: new Date().toISOString(),
       memory: {
-        heapUsed: Math.floor(memoryUsage.heapUsed / 1024 / 1024), // MB
-        heapTotal: Math.floor(memoryUsage.heapTotal / 1024 / 1024), // MB
-        rss: Math.floor(memoryUsage.rss / 1024 / 1024), // MB
-        external: Math.floor(memoryUsage.external / 1024 / 1024), // MB
+        heapUsed: Math.floor(memoryUsage.heapUsed / 1024 / 1024),
+        heapTotal: Math.floor(memoryUsage.heapTotal / 1024 / 1024),
+        rss: Math.floor(memoryUsage.rss / 1024 / 1024),
+        external: Math.floor(memoryUsage.external / 1024 / 1024),
       },
       cache: {
         keys: stats.keys,
@@ -301,19 +252,18 @@ app.get('/health', (req, res) => {
     console.error('❌ Health check error:', error);
     res.status(500).json({
       status: 'error',
-      error: error.message,
+      error: (error as Error).message,
     });
   }
 });
 
 /**
- * Cache management endpoint - Clear cache
+ * Cache management endpoint
  */
-app.post('/cache/clear', (req, res) => {
+app.post('/cache/clear', (_req: Request, res: Response) => {
   try {
     const statsBefore = cache.getStats();
     cache.flush();
-    const statsAfter = cache.getStats();
 
     console.log(`🗑️  Cache cleared via API (${statsBefore.keys} keys removed)`);
 
@@ -330,15 +280,15 @@ app.post('/cache/clear', (req, res) => {
     console.error('❌ Cache clear error:', error);
     res.status(500).json({
       status: 'error',
-      error: error.message,
+      error: (error as Error).message,
     });
   }
 });
 
 /**
- * Start the server
+ * Start server
  */
-const server = httpServer.listen(config.PORT, () => {
+httpServer.listen(config.PORT, () => {
   console.log('');
   console.log('═══════════════════════════════════════════════════════════');
   console.log('🛡️  SEO Shield Proxy - Production Ready');
@@ -360,7 +310,6 @@ const server = httpServer.listen(config.PORT, () => {
   console.log('═══════════════════════════════════════════════════════════');
   console.log('');
 
-  // Initialize WebSocket after server starts
   initializeWebSocket(httpServer);
 });
 
@@ -376,7 +325,6 @@ process.on('SIGTERM', async () => {
     process.exit(0);
   });
 
-  // Force shutdown after 30 seconds
   setTimeout(() => {
     console.error('⚠️  Forced shutdown after timeout');
     process.exit(1);

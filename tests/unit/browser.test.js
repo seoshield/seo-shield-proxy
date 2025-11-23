@@ -108,7 +108,7 @@ describe('Browser Manager', () => {
       const launchArgs = mockPuppeteer.launch.mock.calls[0][0];
       expect(launchArgs.args).toContain('--no-sandbox');
       expect(launchArgs.args).toContain('--disable-setuid-sandbox');
-      expect(launchArgs.args).toContain('--single-process');
+      expect(launchArgs.args).toContain('--disable-dev-shm-usage');
     });
 
     test('should set up disconnect handler', async () => {
@@ -406,3 +406,5 @@ describe('Browser Manager', () => {
     });
   });
 });
+
+

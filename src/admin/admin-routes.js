@@ -1,17 +1,13 @@
 /**
- * Admin Dashboard Routes
- * Provides API endpoints for admin panel
+ * Admin Dashboard API Routes
+ * Provides REST API endpoints for React admin dashboard
+ * Note: React admin dashboard runs on port 3001, this only provides APIs
  */
 
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import metricsCollector from './metrics-collector.js';
 import configManager from './config-manager.js';
 import cache from '../cache.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -65,22 +61,6 @@ function authenticate(req, res, next) {
     return res.status(500).json({ error: 'Authentication system error' });
   }
 }
-
-/**
- * Dashboard UI
- */
-router.get('/', authenticate, (req, res) => {
-  res.sendFile(path.join(__dirname, '../../public/admin/index.html'));
-});
-
-/**
- * Static assets for dashboard
- */
-router.use(
-  '/assets',
-  authenticate,
-  express.static(path.join(__dirname, '../../public/admin'))
-);
 
 /**
  * API: Get statistics
