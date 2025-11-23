@@ -1,0 +1,33 @@
+{
+  "adminPath": "/admin",
+  "adminAuth": {
+    "enabled": true,
+    "username": "admin",
+    "password": "seo-shield-2024"
+  },
+  "cacheRules": {
+    "noCachePatterns": [
+      "/checkout",
+      "/cart",
+      "/admin/*",
+      "/api/*"
+    ],
+    "cachePatterns": [],
+    "cacheByDefault": true,
+    "metaTagName": "x-seo-shield-cache"
+  },
+  "botRules": {
+    "allowedBots": [
+      "Googlebot",
+      "Bingbot",
+      "Twitterbot",
+      "Facebookbot",
+      "LinkedInBot",
+      "Slackbot"
+    ],
+    "blockedBots": [],
+    "renderAllBots": true
+  },
+  "cacheTTL": 3600,
+  "maxCacheSize": 1000
+}

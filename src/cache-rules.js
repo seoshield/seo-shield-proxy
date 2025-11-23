@@ -94,12 +94,13 @@ class CacheRules {
         };
       } else {
         // CACHE patterns defined but URL doesn't match any
+        // Always render to allow meta tag check
         return {
-          shouldRender: !this.cacheByDefault, // If cache by default, still render to check meta tag
+          shouldRender: true,
           shouldCache: this.cacheByDefault,
           reason: this.cacheByDefault
             ? 'No pattern match - using default (cache)'
-            : 'No CACHE pattern match - proxy only',
+            : 'No CACHE pattern match - will check meta tag',
         };
       }
     }
@@ -120,8 +121,9 @@ class CacheRules {
    */
   shouldCacheHtml(html) {
     // Look for meta tag in the HTML
+    // Allow zero or more spaces between attributes
     const metaRegex = new RegExp(
-      `<meta\\s+name=["']${this.metaTagName}["']\\s+content=["'](true|false)["']\\s*/?>`,
+      `<meta\\s+name=["']${this.metaTagName}["']\\s*content=["'](true|false)["']\\s*/?>`,
       'i'
     );
 

@@ -149,9 +149,9 @@ describe('CacheRules Module', () => {
     });
 
     test('should still render non-matching URLs when CACHE_BY_DEFAULT is false', () => {
-      // Should render but not cache
+      // Should render but not cache (to allow meta tag check)
       const decision = rules.shouldCacheUrl('/contact');
-      expect(decision.shouldRender).toBe(false);
+      expect(decision.shouldRender).toBe(true);
       expect(decision.shouldCache).toBe(false);
     });
   });

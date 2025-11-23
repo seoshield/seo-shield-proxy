@@ -105,8 +105,10 @@ describe('Config Module', () => {
 
   describe('Default Values', () => {
     beforeEach(() => {
+      // Only set TARGET_URL, let others use defaults
       process.env = {
-        ...originalEnv,
+        NODE_PATH: originalEnv.NODE_PATH,
+        PATH: originalEnv.PATH,
         TARGET_URL: 'https://test.com',
       };
     });

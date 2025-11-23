@@ -16,15 +16,13 @@ process.env.CACHE_META_TAG = 'x-seo-shield-cache';
 
 // Suppress console.log during tests (unless debugging)
 if (!process.env.DEBUG) {
+  const noop = () => {};
   global.console = {
     ...console,
-    log: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    log: noop,
+    debug: noop,
+    info: noop,
+    warn: noop,
+    error: console.error, // Keep error for debugging
   };
 }
-
-// Global test timeout
-jest.setTimeout(30000);

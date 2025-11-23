@@ -11,14 +11,8 @@ import {
 } from '../mocks/puppeteer.mock.js';
 
 // Mock puppeteer before importing browser module
-const mockBrowser = createMockBrowser();
-const mockPuppeteer = {
-  launch: jest.fn().mockResolvedValue(mockBrowser),
-};
-
-jest.unstable_mockModule('puppeteer', () => ({
-  default: mockPuppeteer,
-}));
+let mockBrowser;
+let mockPuppeteer;
 
 describe('Browser Manager', () => {
   let browserManager;
@@ -29,6 +23,16 @@ describe('Browser Manager', () => {
 
     // Reset module cache and import fresh
     jest.resetModules();
+
+    // Setup mock after reset
+    mockBrowser = createMockBrowser();
+    mockPuppeteer = {
+      launch: jest.fn().mockResolvedValue(mockBrowser),
+    };
+
+    jest.unstable_mockModule('puppeteer', () => ({
+      default: mockPuppeteer,
+    }));
 
     // Reimport with fresh mocks
     const module = await import('../../src/browser.js');
