@@ -35,7 +35,7 @@ describe('Browser Manager', () => {
     }));
 
     // Reimport with fresh mocks
-    const module = await import('../../src/browser.js');
+    const module = await import('../../dist/browser.js');
     browserManager = module.default;
 
     // Reset browser state
@@ -92,7 +92,7 @@ describe('Browser Manager', () => {
 
       expect(mockPuppeteer.launch).toHaveBeenCalledWith(
         expect.objectContaining({
-          headless: 'new',
+          headless: true,
           args: expect.arrayContaining([
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -373,7 +373,9 @@ describe('Browser Manager', () => {
       await browserManager.getBrowser();
       mockBrowser.close.mockRejectedValue(new Error('Close failed'));
 
-      await expect(browserManager.close()).rejects.toThrow('Close failed');
+      // Should not throw - error is logged but swallowed for graceful shutdown
+      await expect(browserManager.close()).resolves.not.toThrow();
+      expect(browserManager.browser).toBeNull();
     });
   });
 

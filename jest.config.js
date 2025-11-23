@@ -20,32 +20,32 @@ export default {
 
   // Coverage configuration
   collectCoverageFrom: [
-    'src/**/*.js',
+    'dist/**/*.js',
     '!**/node_modules/**',
     '!**/tests/**',
   ],
 
   // Coverage thresholds - Achieved 100% test success rate
   coverageThreshold: {
-    './src/config.js': {
+    './dist/config.js': {
       branches: 100,
       functions: 100,
       lines: 100,
       statements: 100,
     },
-    './src/cache.js': {
+    './dist/cache.js': {
       branches: 90,
       functions: 100,
       lines: 95,
       statements: 95,
     },
-    './src/cache-rules.js': {
+    './dist/cache-rules.js': {
       branches: 90,
       functions: 100,
       lines: 100,
       statements: 100,
     },
-    './src/browser.js': {
+    './dist/browser.js': {
       branches: 90,
       functions: 75,
       lines: 84,

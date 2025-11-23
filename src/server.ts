@@ -282,32 +282,34 @@ app.post('/cache/clear', (_req: Request, res: Response) => {
 });
 
 /**
- * Start server
+ * Start server (skip in test environment)
  */
-httpServer.listen(config.PORT, () => {
-  console.log('');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('🛡️  SEO Shield Proxy - Production Ready');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log(`🚀 Server running on port ${config.PORT}`);
-  console.log(`🎯 Target URL: ${config.TARGET_URL}`);
-  console.log(`💾 Cache TTL: ${config.CACHE_TTL}s`);
-  console.log(`⏱️  Puppeteer timeout: ${config.PUPPETEER_TIMEOUT}ms`);
-  console.log('');
-  console.log('Endpoints:');
-  console.log(`  - Health check: http://localhost:${config.PORT}/health`);
-  console.log(`  - Clear cache: POST http://localhost:${config.PORT}/cache/clear`);
-  console.log(`  - Admin Dashboard: http://localhost:${config.PORT}/admin`);
-  console.log('');
-  console.log('Bot detection: ✅ Active');
-  console.log('SSR rendering: ✅ Active');
-  console.log('Reverse proxy: ✅ Active');
-  console.log('WebSocket: ✅ Active');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('');
+if (process.env['NODE_ENV'] !== 'test') {
+  httpServer.listen(config.PORT, () => {
+    console.log('');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('🛡️  SEO Shield Proxy - Production Ready');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(`🚀 Server running on port ${config.PORT}`);
+    console.log(`🎯 Target URL: ${config.TARGET_URL}`);
+    console.log(`💾 Cache TTL: ${config.CACHE_TTL}s`);
+    console.log(`⏱️  Puppeteer timeout: ${config.PUPPETEER_TIMEOUT}ms`);
+    console.log('');
+    console.log('Endpoints:');
+    console.log(`  - Health check: http://localhost:${config.PORT}/health`);
+    console.log(`  - Clear cache: POST http://localhost:${config.PORT}/cache/clear`);
+    console.log(`  - Admin Dashboard: http://localhost:${config.PORT}/admin`);
+    console.log('');
+    console.log('Bot detection: ✅ Active');
+    console.log('SSR rendering: ✅ Active');
+    console.log('Reverse proxy: ✅ Active');
+    console.log('WebSocket: ✅ Active');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log('');
 
-  initializeWebSocket(httpServer);
-});
+    initializeWebSocket(httpServer);
+  });
+}
 
 /**
  * Graceful shutdown

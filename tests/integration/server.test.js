@@ -31,8 +31,8 @@ describe('Server Integration Tests', () => {
 
   beforeAll(async () => {
     // Import modules after mocks are set up
-    const serverModule = await import('../../src/server.js');
-    const cacheModule = await import('../../src/cache.js');
+    const serverModule = await import('../../dist/server.js');
+    const cacheModule = await import('../../dist/cache.js');
     const isbotModule = await import('isbot');
 
     app = serverModule.default;

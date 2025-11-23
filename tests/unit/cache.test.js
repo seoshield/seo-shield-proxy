@@ -16,7 +16,7 @@ describe('Cache Module', () => {
     process.env.CACHE_TTL = '2'; // 2 seconds for faster tests
 
     // Import cache module
-    const module = await import('../../src/cache.js');
+    const module = await import('../../dist/cache.js');
     cache = module.default;
 
     // Clear cache before each test
@@ -181,8 +181,8 @@ describe('Cache Module', () => {
 
   describe('Singleton behavior', () => {
     test('should return same instance on multiple imports', async () => {
-      const module1 = await import('../../src/cache.js');
-      const module2 = await import('../../src/cache.js');
+      const module1 = await import('../../dist/cache.js');
+      const module2 = await import('../../dist/cache.js');
 
       module1.default.set('/singleton-test', '<html>Test</html>');
 
