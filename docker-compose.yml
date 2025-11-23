@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Demo SPA - The target application
+  demo-spa:
+    build:
+      context: ./demo-spa
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - seo-network
+
+  # SEO Shield Proxy - The main proxy server
+  seo-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - TARGET_URL=http://demo-spa:3000
+      - PORT=8080
+      - CACHE_TTL=3600
+      - PUPPETEER_TIMEOUT=30000
+      - NODE_ENV=production
+      - CACHE_BY_DEFAULT=true
+      - NO_CACHE_PATTERNS=/no-cache,/admin/*,/api/*
+    depends_on:
+      - demo-spa
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8080/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - seo-network
+
+  # Admin Dashboard - React admin interface
+  admin-dashboard:
+    build:
+      context: ./admin-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - seo-proxy
+    networks:
+      - seo-network
+
+networks:
+  seo-network:
+    driver: bridge
