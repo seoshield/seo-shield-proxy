@@ -154,7 +154,8 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
 
     // Render with Puppeteer
     console.log(`🎨 Rendering with Puppeteer: ${fullUrl}`);
-    const html = await browserManager.render(fullUrl);
+    const renderResult = await browserManager.render(fullUrl);
+    const { html, statusCode } = renderResult;
 
     const finalDecision = cacheRules.getCacheDecision(req.url, html);
 
@@ -175,11 +176,18 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
       cached: finalDecision.shouldCache,
     });
 
+    // Use custom status code if detected from meta tag
+    const httpStatus = statusCode || 200;
+
+    res.status(httpStatus);
     res.set('Content-Type', 'text/html; charset=utf-8');
     res.set('X-Rendered-By', 'SEO-Shield-Proxy');
     res.set('X-Cache-Status', 'MISS');
     res.set('X-Cache-Rule', finalDecision.reason);
     res.set('X-Cache-Allowed', finalDecision.shouldCache ? 'true' : 'false');
+    if (statusCode) {
+      res.set('X-Prerender-Status-Code', statusCode.toString());
+    }
     res.send(html);
   } catch (error) {
     console.error(`❌ SSR failed for ${requestPath}, falling back to proxy:`, (error as Error).message);

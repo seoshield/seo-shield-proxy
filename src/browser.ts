@@ -2,6 +2,14 @@ import puppeteer, { Browser, Page, PuppeteerLaunchOptions, WaitForOptions } from
 import config from './config.js';
 
 /**
+ * Render result containing HTML and optional HTTP status code
+ */
+export interface RenderResult {
+  html: string;
+  statusCode?: number;
+}
+
+/**
  * Browser Manager - Singleton Pattern
  */
 class BrowserManager {
@@ -75,7 +83,7 @@ class BrowserManager {
     return browser;
   }
 
-  async render(url: string): Promise<string> {
+  async render(url: string): Promise<RenderResult> {
     const browser = await this.getBrowser();
     let page: Page | null = null;
 
@@ -138,7 +146,28 @@ class BrowserManager {
         }
       }
 
-      return html;
+      // Check for prerender-status-code meta tag
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const statusCode = await page.evaluate((): any => {
+        // @ts-ignore - Running in browser context
+        const metaTag = document.querySelector('meta[name="prerender-status-code"]');
+        if (metaTag) {
+          const content = metaTag.getAttribute('content');
+          if (content) {
+            const code = parseInt(content, 10);
+            if (!isNaN(code) && code >= 100 && code < 600) {
+              return code;
+            }
+          }
+        }
+        return undefined;
+      }) as number | undefined;
+
+      if (statusCode) {
+        console.log(`📊 Detected prerender-status-code: ${statusCode}`);
+      }
+
+      return { html, statusCode };
     } catch (error) {
       console.error(`❌ Rendering failed for ${url}:`, (error as Error).message);
       const renderError = error as Error & { url?: string; renderError?: boolean };

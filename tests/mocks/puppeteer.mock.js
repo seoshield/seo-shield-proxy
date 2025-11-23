@@ -20,6 +20,7 @@ export const createMockPage = (overrides = {}) => {
     }),
     goto: jest.fn().mockResolvedValue(undefined),
     content: jest.fn().mockResolvedValue(overrides.html || '<html><body>Mock Page</body></html>'),
+    evaluate: jest.fn().mockResolvedValue(overrides.evaluateResult || undefined),
     close: jest.fn().mockResolvedValue(undefined),
     isClosed: jest.fn().mockReturnValue(false),
     ...overrides,
