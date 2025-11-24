@@ -133,6 +133,13 @@ try {
   const runtimeConfig = configManager.getConfig();
   const adminPath = runtimeConfig?.adminPath || '/admin';
   console.log(`🔧 Admin panel mounted at: ${adminPath}`);
+
+  // Serve admin dashboard HTML at the root admin path
+  app.get(adminPath, adminRateLimiter, (_req: Request, res: Response) => {
+    res.sendFile('index.html', { root: './public/admin' });
+  });
+
+  // Mount admin API routes
   app.use(adminPath, adminRateLimiter, adminRoutes);
 } catch (error) {
   console.error('⚠️  Failed to mount admin panel:', (error as Error).message);
@@ -142,12 +149,17 @@ try {
  * Static asset extensions
  */
 const STATIC_EXTENSIONS = [
-  '', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico',
+  '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico',
   '.woff', '.woff2', '.ttf', '.eot', '.otf', '.json', '.xml', '.txt',
-  '.pdf', '.mp4', '.webm', '.mp3', '.wav',
+  '.pdf', '.mp4', '.webm', '.mp3', '.wav', '.js', '.jsx', '.ts', '.tsx',
 ];
 
 function isStaticAsset(path: string): boolean {
+  // Don't treat API endpoints or root paths as static assets
+  if (path.startsWith('/api') || path.startsWith('/health') || path === '/' || path.endsWith('/')) {
+    return false;
+  }
+
   return STATIC_EXTENSIONS.some((ext) => path.toLowerCase().endsWith(ext));
 }
 
@@ -221,6 +233,19 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
       cacheStatus: null,
     });
     return next(); // Let Express app handle admin routes
+  }
+
+  // 1.5. Check if this is a server endpoint that should not be proxied
+  if (requestPath.startsWith('/health') || requestPath.startsWith('/cache/') || requestPath.startsWith('/api')) {
+    console.log(`🔧 Server endpoint detected: ${requestPath} - Letting Express handle it`);
+    metricsCollector.recordRequest({
+      path: requestPath,
+      userAgent,
+      isBot: false,
+      action: 'proxy',
+      cacheStatus: null,
+    });
+    return next(); // Let Express app handle server endpoints
   }
 
   // 2. Static assets - proxy directly
