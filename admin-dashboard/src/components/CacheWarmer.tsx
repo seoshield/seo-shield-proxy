@@ -5,6 +5,8 @@ import { Badge } from './ui/badge';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useConfirm } from './ConfirmModal';
 
+import { apiCall } from '../config/api';
+
 interface WarmStats {
   total: number;
   completed: number;
@@ -46,11 +48,7 @@ const CacheWarmer = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/warmer/stats', {
-        headers: {
-          'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
-        },
-      });
+      const response = await apiCall('/warmer/stats');
       const result = await response.json();
       if (result.success) {
         setStats(result.data);
@@ -66,12 +64,8 @@ const CacheWarmer = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/warmer/sitemap', {
+      const response = await apiCall('/warmer/sitemap', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
-        },
         body: JSON.stringify({ sitemapUrl, priority }),
       });
 
@@ -101,12 +95,8 @@ const CacheWarmer = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/warmer/add', {
+      const response = await apiCall('/warmer/add', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
-        },
         body: JSON.stringify({ urls, priority }),
       });
 
@@ -135,11 +125,8 @@ const CacheWarmer = () => {
     if (!shouldClear) return;
 
     try {
-      const response = await fetch('/api/warmer/clear', {
+      const response = await apiCall('/warmer/clear', {
         method: 'POST',
-        headers: {
-          'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
-        },
       });
 
       if (response.ok) {
@@ -242,7 +229,7 @@ const CacheWarmer = () => {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm">Queue Size</span>
-                <Badge variant="outline">{stats.queue.length}</Badge>
+                <Badge variant="outline">{stats.queue?.length || 0}</Badge>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm">Est. Time Remaining</span>
@@ -253,7 +240,7 @@ const CacheWarmer = () => {
                 variant="outline"
                 size="sm"
                 className="w-full"
-                disabled={stats.queue.length === 0}
+                disabled={(stats.queue?.length || 0) === 0}
               >
                 Clear Queue
               </Button>
@@ -328,7 +315,7 @@ const CacheWarmer = () => {
       </div>
 
       {/* Current Queue */}
-      {stats.queue.length > 0 && (
+      {stats.queue && stats.queue.length > 0 && (
         <Card>
           <div className="p-6">
             <h3 className="text-lg font-semibold mb-4">Current Queue ({stats.queue.length})</h3>

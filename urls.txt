@@ -1,0 +1,7 @@
+http://localhost:8080/
+http://localhost:8080/prompt/f39fd68d-ada7-4c86-b4be-b8000c87d5b4/woman-with-orange-fabric-wave-in-dramatic-stormy-sky
+http://localhost:8080/prompt/865bce3f-b484-4f7e-a7f7-273b064cd5d3/soviet-retro-fitness-girl-seated-on-carpet-in-natural-light
+http://localhost:8080/prompt/5abae457-90ff-48f4-b905-dfdf70f79888/thoughtful-woman-writing-at-cozy-desk-with-heart-lights
+http://localhost:8080/prompt/4b68d513-b0eb-4af0-bbb3-fc7106499ab9/night-street-portrait-with-yellow-ferrari-in-analog-film-style
+http://localhost:8080/prompt/bece24e8-59b4-4e9b-bf91-5570a9f166b2/airbrush-bonsai-gardening-scene
+http://localhost:8080/prompt/df35f134-d695-4923-b828-b2640b0b3e5f/knolling-style-disassembled-object-flat-lay-with-annotations

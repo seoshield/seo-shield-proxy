@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+import { apiCall } from '../config/api';
+
 interface TrafficEntry {
   timestamp: string;
   path: string;
@@ -21,7 +23,7 @@ export default function RecentTraffic() {
 
   const fetchTraffic = async (): Promise<void> => {
     try {
-      const res = await fetch(`/shieldadmin/shieldapi/traffic?limit=${limit}`);
+      const res = await apiCall(`/traffic?limit=${limit}`);
       const data = await res.json();
       if (data.success) {
         setTraffic(data.data || []);

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Badge } from './ui/badge';
 
+import { apiCall } from '../config/api';
+
 interface ConfigData {
   targetUrl: string;
   cacheTtl: number;
@@ -22,7 +24,7 @@ export default function ConfigPanel() {
 
   const fetchConfig = async (): Promise<void> => {
     try {
-      const res = await fetch('/api/config');
+      const res = await apiCall('/api/config');
       const data = await res.json();
       if (data.success) {
         setConfig(data.data);
@@ -115,7 +117,7 @@ export default function ConfigPanel() {
               <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
                 <span className="text-sm font-medium">Cache Type</span>
                 <Badge variant={config.cacheType === 'redis' ? 'success' : 'info'}>
-                  {config.cacheType.toUpperCase()}
+                  {(config.cacheType || 'memory').toUpperCase()}
                 </Badge>
               </div>
               {config.redisUrl && (

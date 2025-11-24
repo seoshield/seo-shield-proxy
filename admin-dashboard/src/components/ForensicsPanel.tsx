@@ -3,6 +3,8 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 
+import { apiCall } from '../config/api';
+
 interface ConsoleLog {
   timestamp: number;
   level: 'log' | 'warn' | 'error' | 'info' | 'debug';
@@ -94,9 +96,7 @@ const ForensicsPanel = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/forensics/stats', {
-        headers: { 'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}` },
-      });
+      const response = await apiCall('/api/forensics/stats');
       const result = await response.json();
       if (result.success) {
         setStats(result.data);
@@ -108,9 +108,7 @@ const ForensicsPanel = () => {
 
   const fetchErrors = async () => {
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/forensics/errors?page=${page}&limit=20`, {
-        headers: { 'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}` },
-      });
+      const response = await apiCall(`/forensics/errors?page=${page}&limit=20`);
       const result = await response.json();
       if (result.success) {
         setErrors(result.data.errors);
@@ -123,9 +121,7 @@ const ForensicsPanel = () => {
 
   const fetchErrorDetails = async (id: string) => {
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/forensics/errors/${id}`, {
-        headers: { 'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}` },
-      });
+      const response = await apiCall(`/forensics/errors/${id}`);
       const result = await response.json();
       if (result.success) {
         setSelectedError(result.data);
@@ -139,9 +135,8 @@ const ForensicsPanel = () => {
     if (!confirm('Are you sure you want to delete this error record?')) return;
 
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/forensics/errors/${id}`, {
+      const response = await apiCall(`/forensics/errors/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}` },
       });
 
       if (response.ok) {
@@ -159,12 +154,8 @@ const ForensicsPanel = () => {
   const handleCleanup = async (daysToKeep: number) => {
     setLoading(true);
     try {
-      const response = await fetch('/api/forensics/cleanup', {
+      const response = await apiCall('/forensics/cleanup', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
-        },
         body: JSON.stringify({ daysToKeep }),
       });
 

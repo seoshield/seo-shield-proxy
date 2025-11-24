@@ -30,12 +30,17 @@ interface StatsPayload {
  */
 export function initializeWebSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
-    path: '/admin/socket.io',
+    path: '/socket.io',
     cors: {
-      origin: '*',
+      origin: ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:3002', 'http://127.0.0.1:3002', 'http://localhost:8080'],
       methods: ['GET', 'POST'],
+      credentials: true,
     },
+    allowEIO3: true,
   });
+
+  // Store io instance globally for BrowserManager to access
+  (global as any).io = io;
 
   io.on('connection', (socket: Socket) => {
     console.log('📡 Admin client connected:', socket.id);

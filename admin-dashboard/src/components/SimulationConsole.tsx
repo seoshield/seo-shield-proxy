@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+import { apiCall } from '../config/api';
+
 interface UserAgent {
   name: string;
   userAgent: string;
@@ -39,8 +41,8 @@ export default function SimulationConsole() {
   const fetchData = async () => {
     try {
       const [uaResponse, resultsResponse] = await Promise.all([
-        fetch('/api/ua-simulator/agents'),
-        fetch('/api/ua-simulator/results?limit=50')
+        apiCall('/simulate/user-agents'),
+        apiCall('/simulate/history?limit=50')
       ]);
 
       if (uaResponse.ok && resultsResponse.ok) {
@@ -64,14 +66,13 @@ export default function SimulationConsole() {
 
     setLoading(true);
     try {
-      const endpoint = batchMode ? '/api/ua-simulator/batch' : '/api/ua-simulator/simulate';
+      const endpoint = batchMode ? '/ua-simulator/batch' : '/ua-simulator/simulate';
       const body = batchMode
         ? { url: testUrl, types: selectedType === 'all' ? ['googlebot', 'bingbot', 'facebook', 'twitter'] : [selectedType] }
         : { url: testUrl, userAgent: selectedUA || customUA };
 
-      const response = await fetch(endpoint, {
+      const response = await apiCall(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 

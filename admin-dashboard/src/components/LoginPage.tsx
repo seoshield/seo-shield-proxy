@@ -1,4 +1,5 @@
 import { useState, FormEvent } from 'react';
+import { apiCall } from '../config/api';
 
 interface LoginPageProps {
   onLogin: () => void;
@@ -15,17 +16,18 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await apiCall('/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ password }),
       });
 
       const data = await response.json();
 
       if (data.success) {
+        // Store authentication token if provided
+        if (data.token) {
+          localStorage.setItem('adminToken', data.token);
+        }
         localStorage.setItem('adminAuth', 'true');
         onLogin();
       } else {

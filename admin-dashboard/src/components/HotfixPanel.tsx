@@ -5,6 +5,8 @@ import { Badge } from './ui/badge';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useConfirm } from './ConfirmModal';
 
+import { apiCall } from '../config/api';
+
 interface HotfixAction {
   type: 'replace' | 'prepend' | 'append' | 'remove' | 'attribute';
   selector: string;
@@ -96,13 +98,13 @@ const HotfixPanel = () => {
   const fetchData = async () => {
     try {
       const [rulesRes, statsRes, historyRes] = await Promise.all([
-        fetch('/api/hotfix/rules', {
+        apiCall('/api/hotfix/rules', {
           headers: { 'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}` },
         }),
-        fetch('/api/hotfix/stats', {
+        apiCall('/api/hotfix/stats', {
           headers: { 'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}` },
         }),
-        fetch('/api/hotfix/tests?limit=10', {
+        apiCall('/api/hotfix/tests?limit=10', {
           headers: { 'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}` },
         }),
       ]);
@@ -127,7 +129,7 @@ const HotfixPanel = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/hotfix/rules', {
+      const response = await apiCall('/api/hotfix/rules', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,7 +162,7 @@ const HotfixPanel = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/hotfix/rules/${editingRule.id}`, {
+      const response = await apiCall(`/hotfix/rules/${editingRule.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -195,7 +197,7 @@ const HotfixPanel = () => {
     if (!shouldDelete) return;
 
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/hotfix/rules/${id}`, {
+      const response = await apiCall(`/hotfix/rules/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
@@ -212,7 +214,7 @@ const HotfixPanel = () => {
 
   const handleToggleRule = async (id: string) => {
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/hotfix/rules/${id}/toggle`, {
+      const response = await apiCall(`/hotfix/rules/${id}/toggle`, {
         method: 'POST',
         headers: {
           'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
@@ -232,7 +234,7 @@ const HotfixPanel = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/hotfix/test', {
+      const response = await apiCall('/api/hotfix/test', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

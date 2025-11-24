@@ -19,6 +19,29 @@ import {
   ssrRateLimiter
 } from './middleware/rate-limiter';
 
+// Traffic event sender to API server
+async function sendTrafficEvent(trafficData: any) {
+  try {
+    console.log('📤 Sending traffic event to API server:', trafficData.path);
+    const response = await fetch('http://localhost:8190/shieldapi/traffic-events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(trafficData),
+    });
+
+    if (!response.ok) {
+      console.error('❌ Failed to send traffic event:', response.status);
+    } else {
+      console.log('✅ Traffic event sent successfully');
+    }
+  } catch (error) {
+    // Silently fail - API server might not be running
+    console.error('❌ Could not send traffic event to API server:', error);
+  }
+}
+
 const app = express();
 const httpServer: HttpServer = createServer(app);
 
@@ -53,9 +76,25 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   const userAgent = req.headers['user-agent'] || '';
   const requestPath = req.path;
   const isBotRequest = isbot(userAgent);
-  const isRenderPreview = req.query.render === 'preview';
+  const isRenderPreview = req.query.render === 'preview' || req.query.render === 'true';
 
   console.log(`📥 ${req.method} ${requestPath} - UA: ${userAgent.length > 100 ? `${userAgent.substring(0, 97)}...` : userAgent}`);
+  console.log(`🤌 Is Bot: ${isBotRequest}`);
+
+  // Send traffic event to API server for real-time monitoring
+  sendTrafficEvent({
+    method: req.method,
+    path: requestPath,
+    userAgent: userAgent,
+    ip: req.ip || req.connection.remoteAddress,
+    timestamp: Date.now(),
+    isBot: isBotRequest,
+    headers: {
+      'user-agent': userAgent,
+      'referer': req.headers.referer,
+      'accept': req.headers.accept
+    }
+  });
 
   // Skip SSR for static assets only
   if (requestPath.startsWith('/assets')) {
@@ -85,68 +124,24 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     // Proxy-only mode - no metrics collection
 
     try {
-      const browser = await browserManager.getBrowser();
-      const page = await browser.newPage();
       const cached = (await getCache()).get(fullUrl);
 
       if (cached && !isRenderPreview) {
-        console.log(`🎯 Bot served from cache: ${requestPath}`);
-        res.status(200).send(JSON.parse(cached as any).content);
-        await page.close();
+        const cacheData = JSON.parse(cached as any);
+        console.log(`🎯 Bot served from cache: ${requestPath} (${cacheData.renderTime ? new Date(cacheData.renderTime).toISOString() : 'unknown'})`);
+        res.status(200).send(cacheData.content);
         return;
       }
 
-      console.log(`🔄 Rendering bot preview: ${fullUrl}`);
-      const html = await page.evaluate(async (url: string, waitSelector: string) => {
-        const start = Date.now();
-        let attempts = 0;
-        const maxAttempts = 30;
+      console.log(`🔄 Bot SSR: ${fullUrl} (cache miss - rendering fresh)`);
 
-        while (attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+      const renderResult = await browserManager.render(fullUrl);
 
-          let ready = false;
-          try {
-            const scripts = Array.from(document.querySelectorAll('script'));
-            for (const script of scripts) {
-              if (!script.src && script.textContent) {
-                try {
-                  const markers = ['__INITIAL_STATE__', '__NUXT__', '__REDUX__', 'window.__STATE__', 'window.data'];
-                  for (const marker of markers) {
-                    if (script.textContent.includes(marker)) {
-                      ready = true;
-                      break;
-                    }
-                  }
-                  if (ready) break;
-                } catch (e) {
-                  // Ignore script errors
-                }
-              }
-            }
-
-            const content = document.querySelector(waitSelector) || document.querySelector('main') || document.querySelector('#app') || document.querySelector('.app') || document.body;
-            const text = content ? content.textContent || '' : '';
-            if (text.length > 100) ready = true;
-
-            if (ready || Date.now() - start > 5000) break;
-            attempts++;
-          } catch (e) {
-            console.warn('Warning: Error checking render readiness:', e);
-            break;
-          }
-        }
-
-        return document.documentElement.outerHTML;
-      }, fullUrl, 'body');
-
-      await page.close();
-
-      if (html) {
+      if (renderResult && renderResult.html) {
         // Cache the rendered content for future bot requests
-        (await getCache()).set(fullUrl, JSON.stringify({ content: html, renderTime: Date.now() }));
+        (await getCache()).set(fullUrl, JSON.stringify({ content: renderResult.html, renderTime: Date.now() }));
         console.log(`✅ Bot SSR rendered and cached: ${requestPath}`);
-        res.status(200).send(html);
+        res.status(renderResult.statusCode || 200).send(renderResult.html);
       } else {
         console.log(`⚠️ Bot SSR failed, falling back to proxy: ${requestPath}`);
         return next();
@@ -237,84 +232,10 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     }
   }
 
-  // 5. No cache or uncacheable - render for humans
-  console.log(`💾 Cache MISS or uncacheable: ${requestPath} - Rendering...`);
+  // 5. Humans - always use transparent proxy (no SSR, no cache)
+  console.log(`👤 Human user - Using transparent proxy: ${requestPath}`);
   // Proxy-only mode - no metrics collection
-
-  if (isBotRequest) {
-    console.log(`🤖 Bot cache miss - Proxying directly: ${requestPath}`);
-    // Proxy-only mode - no metrics collection
-    return next();
-  }
-
-  try {
-    const browser = await browserManager.getBrowser();
-    const page = await browser.newPage();
-
-    console.log(`🔄 Human SSR: ${fullUrl}`);
-    const html = await page.evaluate(async (url: string, waitSelector: string) => {
-      const start = Date.now();
-      let attempts = 0;
-      const maxAttempts = 30;
-
-      while (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        let ready = false;
-        try {
-          const scripts = Array.from(document.querySelectorAll('script'));
-          for (const script of scripts) {
-            if (!script.src && script.textContent) {
-              try {
-                const markers = ['__INITIAL_STATE__', '__NUXT__', '__REDUX__', 'window.__STATE__', 'window.data'];
-                for (const marker of markers) {
-                  if (script.textContent.includes(marker)) {
-                    ready = true;
-                    break;
-                  }
-                }
-                if (ready) break;
-              } catch (e) {
-                // Ignore script errors
-              }
-            }
-          }
-
-          const content = document.querySelector(waitSelector) || document.querySelector('main') || document.querySelector('#app') || document.querySelector('.app') || document.body;
-          const text = content ? content.textContent || '' : '';
-          if (text.length > 100) ready = true;
-
-          if (ready || Date.now() - start > 5000) break;
-          attempts++;
-        } catch (e) {
-          console.warn('Warning: Error checking render readiness:', e);
-          break;
-        }
-      }
-
-      return document.documentElement.outerHTML;
-    }, fullUrl, 'body');
-
-    await page.close();
-
-    if (html) {
-      const isCacheable = cacheRules.shouldCacheUrl(req.originalUrl).shouldCache;
-      if (isCacheable) {
-        (await getCache()).set(fullUrl, JSON.stringify({ content: html, renderTime: Date.now() }));
-        console.log(`✅ Human SSR rendered and cached: ${requestPath}`);
-      } else {
-        console.log(`⚡ Human SSR rendered (not cached): ${requestPath}`);
-      }
-      res.status(200).send(html);
-    } else {
-      console.log(`⚠️ Human SSR failed, falling back to proxy: ${requestPath}`);
-      return next();
-    }
-  } catch (error) {
-    console.error(`❌ Human rendering failed: ${requestPath}`, error);
-    // Proxy-only mode - no metrics collection
-    return next();
-  }
+  return next();
 });
 
 // Create proxy middleware
@@ -325,6 +246,9 @@ const proxyMiddleware = createProxyMiddleware({
   timeout: 30000,
   onProxyReq: (proxyReq: any, req: any, res: any) => {
     console.log(`🔗 Proxying: ${req.method} ${req.url} -> ${config.TARGET_URL}${req.url}`);
+  },
+  onProxyInit: () => {
+    console.log(`🚀 Proxy middleware initialized`);
   },
   onError: (err: any, req: any, res: any) => {
     console.error(`❌ Proxy error: ${err.message} for ${req.url}`);
@@ -350,6 +274,11 @@ app.get('/health', (req: Request, res: Response) => {
 });
 
 // Apply proxy middleware as the last handler
+console.log('📌 About to apply proxy middleware...');
+app.use((req, res, next) => {
+  console.log('🔍 Final middleware - calling proxy for:', req.url);
+  return next();
+});
 app.use(proxyMiddleware);
 
 // 404 handler

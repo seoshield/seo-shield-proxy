@@ -8,6 +8,7 @@ import { createServer } from 'http';
 import adminRoutes from './admin/admin-routes';
 import configManager from './admin/config-manager';
 import { adminRateLimiter } from './middleware/rate-limiter';
+import { initializeWebSocket } from './admin/websocket';
 import dotenv from 'dotenv';
 
 // Load environment variables
@@ -33,8 +34,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// Mount admin API routes with rate limiting
-app.use('/shieldapi', adminRateLimiter, adminRoutes);
+// Mount admin API routes (rate limiting temporarily disabled)
+app.use('/shieldapi', adminRoutes);
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -67,6 +68,9 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 // Start server
 const server = createServer(app);
 
+// Initialize WebSocket server
+initializeWebSocket(server);
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log('╔═══════════════════════════════════════════════════════════╗');
   console.log('║                 SEO Shield API Server                 ║');
@@ -74,6 +78,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('');
   console.log(`🚀 API Server running on port ${PORT}`);
   console.log('🎯 Admin API endpoints: /shieldapi/*');
+  console.log('📡 WebSocket endpoint: /socket.io');
   console.log('💚 Health check: /health');
   console.log('');
 });

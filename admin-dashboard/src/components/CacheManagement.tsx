@@ -6,6 +6,8 @@ import { useNotifications } from '../contexts/NotificationContext';
 import { useConfirm } from './ConfirmModal';
 import type { StatsData } from '../types';
 
+import { apiCall } from '../config/api';
+
 interface CacheEntry {
   key: string;
   url: string;
@@ -33,7 +35,7 @@ export default function CacheManagement({ stats }: CacheManagementProps) {
 
   const fetchCacheList = async (): Promise<void> => {
     try {
-      const res = await fetch('/api/cache');
+      const res = await apiCall('/api/cache');
       const data = await res.json();
       if (data.success) {
         setCacheList(data.data || []);
@@ -55,7 +57,7 @@ export default function CacheManagement({ stats }: CacheManagementProps) {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/cache/clear', { method: 'POST' });
+      const res = await apiCall('/api/cache/clear', { method: 'POST' });
       const data = await res.json();
 
       if (data.status === 'ok') {
@@ -83,7 +85,7 @@ export default function CacheManagement({ stats }: CacheManagementProps) {
     if (!shouldDelete) return;
 
     try {
-      const res = await fetch(`/api/cache/${encodeURIComponent(key)}`, {
+      const res = await apiCall(`/api/cache/${encodeURIComponent(key)}`, {
         method: 'DELETE'
       });
       const data = await res.json();

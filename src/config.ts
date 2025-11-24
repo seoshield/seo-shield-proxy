@@ -312,8 +312,8 @@ const config: Config = {
   // Cache TTL in seconds - default to 1 hour
   CACHE_TTL: parseInt(process.env['CACHE_TTL'] || '3600', 10) || 3600,
 
-  // Cache type - memory or redis
-  CACHE_TYPE: (process.env['CACHE_TYPE'] === 'redis' ? 'redis' : 'memory') as 'memory' | 'redis',
+  // Cache type - memory or redis (temporarily forced to memory)
+  CACHE_TYPE: 'memory' as 'memory' | 'redis', // (process.env['CACHE_TYPE'] === 'redis' ? 'redis' : 'memory') as 'memory' | 'redis',
 
   // Redis connection URL
   REDIS_URL: process.env['REDIS_URL'] || 'redis://localhost:6379',

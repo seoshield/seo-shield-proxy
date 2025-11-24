@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { NotificationProvider } from './contexts/NotificationContext';
 import LoginPage from './components/LoginPage';
-import Header from './components/Header';
 import StatsOverview from './components/StatsOverview';
 import TrafficChart from './components/TrafficChart';
 import BotStats from './components/BotStats';
@@ -16,8 +15,10 @@ import ForensicsPanel from './components/ForensicsPanel';
 import BlockingPanel from './components/BlockingPanel';
 import SimulationConsole from './components/SimulationConsole';
 import SEOProtocolsPanel from './components/SEOProtocolsPanel';
+import RealTimeStream from './components/RealTimeStream';
+import SSRMonitor from './components/SSRMonitor';
+import Sidebar from './components/Sidebar';
 import Notifications from './components/Notifications';
-import type { TabButtonProps } from './types';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -52,84 +53,16 @@ function App() {
 
   return (
     <NotificationProvider>
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-slate-50 flex">
         <Notifications />
-        <Header isConnected={isConnected} onLogout={handleLogout} />
-
-      <nav className="bg-white border-b border-slate-200 px-6 overflow-x-auto">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex space-x-1">
-            <TabButton
-              active={activeTab === 'overview'}
-              onClick={() => setActiveTab('overview')}
-              icon="📊"
-              label="Overview"
-            />
-            <TabButton
-              active={activeTab === 'traffic'}
-              onClick={() => setActiveTab('traffic')}
-              icon="🚦"
-              label="Traffic"
-            />
-            <TabButton
-              active={activeTab === 'cache'}
-              onClick={() => setActiveTab('cache')}
-              icon="💾"
-              label="Cache"
-            />
-            <TabButton
-              active={activeTab === 'warmer'}
-              onClick={() => setActiveTab('warmer')}
-              icon="🔥"
-              label="Cache Warmer"
-            />
-            <TabButton
-              active={activeTab === 'snapshots'}
-              onClick={() => setActiveTab('snapshots')}
-              icon="📸"
-              label="Visual Diff"
-            />
-            <TabButton
-              active={activeTab === 'seo-protocols'}
-              onClick={() => setActiveTab('seo-protocols')}
-              icon="⚡"
-              label="SEO Protocols"
-            />
-            <TabButton
-              active={activeTab === 'forensics'}
-              onClick={() => setActiveTab('forensics')}
-              icon="🔍"
-              label="Forensics"
-            />
-            <TabButton
-              active={activeTab === 'blocking'}
-              onClick={() => setActiveTab('blocking')}
-              icon="🚫"
-              label="Blocking"
-            />
-            <TabButton
-              active={activeTab === 'hotfix'}
-              onClick={() => setActiveTab('hotfix')}
-              icon="🔧"
-              label="Hotfix"
-            />
-            <TabButton
-              active={activeTab === 'simulation'}
-              onClick={() => setActiveTab('simulation')}
-              icon="🤖"
-              label="UA Sim"
-            />
-            <TabButton
-              active={activeTab === 'config'}
-              onClick={() => setActiveTab('config')}
-              icon="⚙️"
-              label="Config"
-            />
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-6 py-8">
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isConnected={isConnected}
+          onLogout={handleLogout}
+        />
+        <div className="flex-1 overflow-auto">
+          <main className="p-6">
         {activeTab === 'overview' && (
           <div className="space-y-6">
             <StatsOverview stats={stats} />
@@ -151,9 +84,9 @@ function App() {
 
         {activeTab === 'warmer' && <CacheWarmer />}
 
-        {activeTab === 'snapshots' && <SnapshotDiff />}
+        {activeTab === 'snapshot' && <SnapshotDiff />}
 
-        {activeTab === 'seo-protocols' && <SEOProtocolsPanel />}
+        {activeTab === 'seo' && <SEOProtocolsPanel />}
 
         {activeTab === 'forensics' && <ForensicsPanel />}
 
@@ -163,29 +96,15 @@ function App() {
 
         {activeTab === 'simulation' && <SimulationConsole />}
 
-        {activeTab === 'config' && <ConfigPanel />}
-      </main>
-    </div>
-    </NotificationProvider>
-  );
-}
+        {activeTab === 'realtime' && <RealTimeStream />}
 
-function TabButton({ active, onClick, icon, label }: TabButtonProps) {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        flex items-center gap-2 px-4 py-3 font-medium text-sm transition-all
-        ${
-          active
-            ? 'text-blue-600 border-b-2 border-blue-600'
-            : 'text-slate-600 hover:text-slate-900 border-b-2 border-transparent hover:border-slate-300'
-        }
-      `}
-    >
-      <span>{icon}</span>
-      <span>{label}</span>
-    </button>
+        {activeTab === 'ssr' && <SSRMonitor />}
+
+        {activeTab === 'config' && <ConfigPanel />}
+          </main>
+        </div>
+      </div>
+    </NotificationProvider>
   );
 }
 

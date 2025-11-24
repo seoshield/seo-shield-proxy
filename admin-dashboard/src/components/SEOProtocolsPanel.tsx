@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 
+import { apiCall } from '../config/api';
+
 interface SEOProtocol {
   name: string;
   enabled: boolean;
@@ -10,7 +12,7 @@ interface SEOProtocol {
 }
 
 interface SEOProtocolsResponse {
-  protocols: SEOProtocol[];
+  protocols: SEOProtocol[] | Record<string, any>;
   globalStats: {
     totalOptimizations: number;
     successRate: number;
@@ -33,12 +35,42 @@ export default function SEOProtocolsPanel() {
   const fetchProtocols = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/seo-protocols/status');
+      const response = await apiCall('/api/seo-protocols/status');
       const data: SEOProtocolsResponse = await response.json();
-      setProtocols(data.protocols);
-      setGlobalStats(data.globalStats);
+
+      // Convert protocols object to array if needed
+      let protocolsArray: SEOProtocol[] = [];
+      if (Array.isArray(data.protocols)) {
+        protocolsArray = data.protocols;
+      } else if (typeof data.protocols === 'object' && data.protocols !== null) {
+        // Convert object to array
+        protocolsArray = Object.entries(data.protocols).map(([name, protocol]: [string, any]) => ({
+          name,
+          enabled: protocol.enabled || false,
+          status: protocol.status || 'inactive',
+          lastRun: protocol.lastRun || new Date().toISOString(),
+          successRate: protocol.successRate || 0,
+          metrics: protocol.metrics || {}
+        }));
+      }
+
+      setProtocols(protocolsArray);
+
+      // Ensure globalStats exists
+      setGlobalStats(data.globalStats || {
+        totalOptimizations: 0,
+        successRate: 0,
+        lastUpdate: new Date().toISOString()
+      });
     } catch (error) {
       console.error('Failed to fetch SEO protocols status:', error);
+      // Set fallback values on error
+      setProtocols([]);
+      setGlobalStats({
+        totalOptimizations: 0,
+        successRate: 0,
+        lastUpdate: new Date().toISOString()
+      });
     } finally {
       setLoading(false);
     }
@@ -46,7 +78,7 @@ export default function SEOProtocolsPanel() {
 
   const toggleProtocol = async (protocolName: string) => {
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/seo-protocols/${protocolName}/toggle`, {
+      const response = await apiCall(`/seo-protocols/${protocolName}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -60,7 +92,7 @@ export default function SEOProtocolsPanel() {
 
   const runProtocol = async (protocolName: string) => {
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/seo-protocols/${protocolName}/run`, {
+      const response = await apiCall(`/seo-protocols/${protocolName}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -117,7 +149,7 @@ export default function SEOProtocolsPanel() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Total Optimizations</p>
-                <p className="text-2xl font-bold text-slate-900">{globalStats.totalOptimizations.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-slate-900">{(globalStats.totalOptimizations || 0).toLocaleString()}</p>
               </div>
               <div className="text-3xl">⚡</div>
             </div>
@@ -126,8 +158,8 @@ export default function SEOProtocolsPanel() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-600">Global Success Rate</p>
-                <p className={`text-2xl font-bold ${getSuccessRateColor(globalStats.successRate)}`}>
-                  {globalStats.successRate.toFixed(1)}%
+                <p className={`text-2xl font-bold ${getSuccessRateColor(globalStats.successRate || 0)}`}>
+                  {(globalStats.successRate || 0).toFixed(1)}%
                 </p>
               </div>
               <div className="text-3xl">📊</div>
@@ -138,7 +170,7 @@ export default function SEOProtocolsPanel() {
               <div>
                 <p className="text-sm font-medium text-slate-600">Last Update</p>
                 <p className="text-lg font-semibold text-slate-900">
-                  {new Date(globalStats.lastUpdate).toLocaleTimeString()}
+                  {globalStats.lastUpdate ? new Date(globalStats.lastUpdate).toLocaleTimeString() : 'Never'}
                 </p>
               </div>
               <div className="text-3xl">🕐</div>
@@ -213,8 +245,8 @@ export default function SEOProtocolsPanel() {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-600">Success Rate</span>
-                <span className={`font-semibold ${getSuccessRateColor(protocol.successRate)}`}>
-                  {protocol.successRate.toFixed(1)}%
+                <span className={`font-semibold ${getSuccessRateColor(protocol.successRate || 0)}`}>
+                  {(protocol.successRate || 0).toFixed(1)}%
                 </span>
               </div>
               <div className="flex justify-between items-center">

@@ -3,6 +3,8 @@ import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 
+import { apiCall } from '../config/api';
+
 interface Snapshot {
   id: string;
   url: string;
@@ -54,7 +56,7 @@ const SnapshotDiff = () => {
 
   const fetchSnapshots = async (pageNum: number) => {
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/snapshots?page=${pageNum}&limit=20`, {
+      const response = await apiCall(`/snapshots?page=${pageNum}&limit=20`, {
         headers: {
           'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,
         },
@@ -76,7 +78,7 @@ const SnapshotDiff = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/snapshots/capture', {
+      const response = await apiCall('/api/snapshots/capture', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +122,7 @@ const SnapshotDiff = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/snapshots/compare', {
+      const response = await apiCall('/api/snapshots/compare', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,7 +152,7 @@ const SnapshotDiff = () => {
     if (!confirm('Are you sure you want to delete this snapshot?')) return;
 
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/snapshots/${id}`, {
+      const response = await apiCall(`/snapshots/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Basic ${btoa(localStorage.getItem('adminCredentials') || '')}`,

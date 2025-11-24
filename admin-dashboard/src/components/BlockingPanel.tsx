@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNotifications } from '../contexts/NotificationContext';
 import { useConfirm } from './ConfirmModal';
 
+import { apiCall } from '../config/api';
+
 interface BlockingRule {
   id: string;
   name: string;
@@ -47,8 +49,8 @@ export default function BlockingPanel() {
     try {
       setLoading(true);
       const [rulesResponse, statsResponse] = await Promise.all([
-        fetch('/api/blocking/rules'),
-        fetch('/api/blocking/stats')
+        apiCall('/api/blocking/rules'),
+        apiCall('/api/blocking/stats')
       ]);
 
       if (rulesResponse.ok && statsResponse.ok) {
@@ -68,7 +70,7 @@ export default function BlockingPanel() {
 
   const toggleRule = async (ruleId: string) => {
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/blocking/rules/${ruleId}/toggle`, {
+      const response = await apiCall(`/blocking/rules/${ruleId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -91,7 +93,7 @@ export default function BlockingPanel() {
     if (!shouldDelete) return;
 
     try {
-      const response = await fetch(`/shieldadmin/shieldapi/blocking/rules/${ruleId}`, {
+      const response = await apiCall(`/blocking/rules/${ruleId}`, {
         method: 'DELETE',
       });
       if (response.ok) {
@@ -109,7 +111,7 @@ export default function BlockingPanel() {
     }
 
     try {
-      const response = await fetch('/api/blocking/rules', {
+      const response = await apiCall('/api/blocking/rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newRule),

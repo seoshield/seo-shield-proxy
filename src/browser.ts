@@ -542,7 +542,8 @@ class BrowserManager {
         }
       }
 
-      // Perform Content Health Check if enabled
+      // Content Health Check temporarily disabled
+      /*
       if (this.contentHealthCheck) {
         try {
           const healthResult = await this.contentHealthCheck.checkPageHealth(page, url);
@@ -567,6 +568,7 @@ class BrowserManager {
           // Don't fail the entire render if health check has issues
         }
       }
+      */
 
       return { html, statusCode };
     } catch (error) {
@@ -595,17 +597,107 @@ class BrowserManager {
   }
 
   async render(url: string): Promise<RenderResult> {
-    const cluster = await this.getCluster();
+    const renderStartTime = Date.now();
+    const renderId = `render_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Use direct browser for simpler implementation
+    const browser = await this.getBrowser();
+    if (!browser) {
+      throw new Error('Browser not available');
+    }
 
     this.metrics.queued++;
     console.log(`📋 Queue: ${this.metrics.queued} queued, ${this.metrics.processing}/${this.metrics.maxConcurrency} processing`);
 
+    // Emit render start event to admin dashboard
+    this.emitSSREvent('render_start', {
+      renderId,
+      url,
+      timestamp: renderStartTime,
+      queueSize: this.metrics.queued,
+      processing: this.metrics.processing
+    });
+
     try {
-      const result = await cluster.execute(url);
+      this.metrics.processing++;
+      const page = await browser.newPage();
+      const result = await this.renderPage(page, url);
+      await page.close();
+      this.metrics.processing--;
+      this.metrics.completed++;
+
+      const renderDuration = Date.now() - renderStartTime;
+
+      // Emit render success event to admin dashboard
+      this.emitSSREvent('render_complete', {
+        renderId,
+        url,
+        timestamp: Date.now(),
+        duration: renderDuration,
+        success: true,
+        htmlLength: result.html ? result.html.length : 0,
+        statusCode: result.statusCode || 200
+      });
+
+      console.log(`✅ SSR completed in ${renderDuration}ms for ${url}`);
       return result;
     } catch (error) {
       this.metrics.queued = Math.max(0, this.metrics.queued - 1);
+      this.metrics.processing = Math.max(0, this.metrics.processing - 1);
+      this.metrics.errors++;
+
+      const renderDuration = Date.now() - renderStartTime;
+
+      // Emit render error event to admin dashboard
+      this.emitSSREvent('render_error', {
+        renderId,
+        url,
+        timestamp: Date.now(),
+        duration: renderDuration,
+        success: false,
+        error: (error as Error).message
+      });
+
+      console.error(`❌ SSR failed after ${renderDuration}ms for ${url}:`, (error as Error).message);
       throw error;
+    }
+  }
+
+  private emitSSREvent(event: string, data: any) {
+    try {
+      // Send to admin dashboard via WebSocket if available
+      const fs = require('fs');
+      const path = require('path');
+
+      // Create temp file with event data for WebSocket handler to pick up
+      const eventFile = path.join(process.cwd(), '.ssr-events.json');
+      let events = [];
+
+      try {
+        if (fs.existsSync(eventFile)) {
+          events = JSON.parse(fs.readFileSync(eventFile, 'utf8'));
+        }
+      } catch (e) {
+        // File doesn't exist or is invalid
+      }
+
+      events.push({
+        event,
+        data,
+        id: Date.now() + '_' + Math.random().toString(36).substr(2, 5)
+      });
+
+      // Keep only last 50 events
+      if (events.length > 50) {
+        events = events.slice(-50);
+      }
+
+      fs.writeFileSync(eventFile, JSON.stringify(events, null, 2));
+
+      // Also emit via direct WebSocket if available
+      global.io?.emit('ssr_event', { event, data });
+    } catch (e) {
+      // Silently fail WebSocket errors
     }
   }
 
@@ -613,33 +705,59 @@ class BrowserManager {
     return { ...this.metrics };
   }
 
-  async getBrowser(): Promise<any> {
-    const cluster = await this.getCluster();
+  private directBrowser: any = null;
 
-    // Get a browser instance from the cluster
-    // @ts-ignore - Access internal browser instance
-    if ((cluster as any).browser) {
-      return (cluster as any).browser;
+  async getBrowser(): Promise<any> {
+    // Use a simple direct browser instance that definitely has newPage()
+    if (!this.directBrowser) {
+      const puppeteer = await import('puppeteer');
+
+      console.log('🚀 Launching direct Puppeteer browser for SSR...');
+      this.directBrowser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-extensions',
+          '--no-first-run',
+          '--disable-background-networking',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-breakpad',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-features=TranslateUI',
+          '--disable-ipc-flooding-protection',
+          '--disable-renderer-backgrounding',
+          '--enable-features=NetworkService,NetworkServiceInProcess',
+          '--force-color-profile=srgb',
+          '--hide-scrollbars',
+          '--metrics-recording-only',
+          '--mute-audio',
+        ],
+      });
+
+      console.log('✅ Direct Puppeteer browser ready for SSR');
     }
 
-    // Create a temporary browser instance
-    const puppeteer = await import('puppeteer');
-    return puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu',
-      ],
-    });
+    return this.directBrowser;
   }
 
   async close(): Promise<void> {
+    // Close the direct browser first
+    if (this.directBrowser) {
+      try {
+        await this.directBrowser.close();
+        console.log('🔒 Direct browser closed');
+        this.directBrowser = null;
+      } catch (error) {
+        console.error('⚠️  Error closing direct browser:', (error as Error).message);
+      }
+    }
+
+    // Close the cluster
     if (this.cluster) {
       try {
         await this.cluster.idle();

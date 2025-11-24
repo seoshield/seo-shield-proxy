@@ -10,14 +10,14 @@ export default defineConfig({
     allowedHosts: ['admin-dashboard', 'seo-proxy', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
-        target: 'http://seo-api:8190',
+        target: 'http://localhost:8190',
         changeOrigin: true,
         pathRewrite: {
           '^/api': '/shieldapi',
         },
       },
       '/socket.io': {
-        target: 'http://seo-proxy:8080',
+        target: 'http://localhost:8190',
         ws: true,
       },
     },
@@ -28,14 +28,14 @@ export default defineConfig({
     allowedHosts: ['demo-spa', 'localhost', '127.0.0.1'],
     proxy: {
       '/api': {
-        target: 'http://seo-api:8190',
+        target: 'http://localhost:8190',
         changeOrigin: true,
         pathRewrite: {
           '^/api': '/shieldapi',
         },
       },
       '/socket.io': {
-        target: 'http://seo-proxy:8080',
+        target: 'http://localhost:8190',
         ws: true,
       },
     },

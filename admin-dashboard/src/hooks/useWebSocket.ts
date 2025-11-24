@@ -9,9 +9,9 @@ export function useWebSocket(): UseWebSocketReturn {
   const [traffic, setTraffic] = useState<TrafficData[]>([]);
 
   useEffect(() => {
-    // Connect to Socket.io server
-    const newSocket = io('http://localhost:8080', {
-      path: '/admin/socket.io',
+    // Connect to Socket.io server (API server on port 8190)
+    const newSocket = io('http://localhost:8190', {
+      path: '/socket.io',
       transports: ['websocket', 'polling'],
     });
 
