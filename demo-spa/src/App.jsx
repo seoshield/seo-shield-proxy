@@ -1,55 +1,41 @@
-import { Routes, Route, Link } from 'react-router-dom';
-import Home from './pages/Home';
-import About from './pages/About';
-import Blog from './pages/Blog';
-import BlogPost from './pages/BlogPost';
-import Products from './pages/Products';
-import ProductDetail from './pages/ProductDetail';
-import NoCache from './pages/NoCache';
-import Contact from './pages/Contact';
-import NotFound from './pages/NotFound';
+import React from "react"
+import { Routes, Route } from "react-router-dom"
+import { Helmet } from "react-helmet-async"
+import Home from "./components/Home"
+import About from "./components/About"
+import Products from "./components/Products"
+import Contact from "./components/Contact"
+import Navigation from "./components/Navigation"
+import "./App.css"
 
 function App() {
   return (
-    <div className="app">
-      <nav className="navbar">
-        <div className="nav-container">
-          <Link to="/" className="logo">
-            🛡️ SEO Demo SPA
-          </Link>
-          <div className="nav-links">
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-            <Link to="/blog">Blog</Link>
-            <Link to="/products">Products</Link>
-            <Link to="/no-cache">No Cache</Link>
-            <Link to="/contact">Contact</Link>
-          </div>
-        </div>
-      </nav>
-
+    <div className="App">
+      <Helmet>
+        <title>SEO Shield Proxy Demo - SPA</title>
+        <meta name="description" content="Test SEO optimization with our Single Page Application demo" />
+        <meta name="keywords" content="SEO, SPA, React, Proxy, Shield" />
+        <meta property="og:title" content="SEO Shield Proxy Demo" />
+        <meta property="og:description" content="Test SEO optimization capabilities" />
+        <meta property="og:type" content="website" />
+      </Helmet>
+      
+      <Navigation />
+      
       <main className="main-content">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<About />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/blog/:slug" element={<BlogPost />} />
           <Route path="/products" element={<Products />} />
-          <Route path="/products/:id" element={<ProductDetail />} />
-          <Route path="/no-cache" element={<NoCache />} />
           <Route path="/contact" element={<Contact />} />
-          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-
+      
       <footer className="footer">
-        <p>© 2024 SEO Demo SPA - Testing SEO Shield Proxy</p>
-        <p className="footer-note">
-          🤖 Bots get SSR | 👤 Humans get direct SPA
-        </p>
+        <p>&copy; 2025 SEO Shield Proxy Demo. Built for testing SEO optimization.</p>
       </footer>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App

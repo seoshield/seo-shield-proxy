@@ -1,6 +1,10 @@
 import { Cluster } from 'puppeteer-cluster';
 import type { Page } from 'puppeteer';
-import config from './config.js';
+import config from './config';
+import forensicsCollector from './admin/forensics-collector';
+import blockingManager from './admin/blocking-manager';
+import { ContentHealthCheckManager, CriticalSelector } from './admin/content-health-check';
+import { VirtualScrollManager } from './admin/virtual-scroll-manager';
 
 /**
  * Render result containing HTML and optional HTTP status code
@@ -36,6 +40,8 @@ class BrowserManager {
     errors: 0,
     maxConcurrency: config.MAX_CONCURRENT_RENDERS,
   };
+  private contentHealthCheck: ContentHealthCheckManager | null = null;
+  private virtualScrollManager: VirtualScrollManager | null = null;
 
   async getCluster(): Promise<Cluster<string, RenderResult>> {
     if (this.cluster) {
@@ -60,6 +66,12 @@ class BrowserManager {
 
   private async initCluster(): Promise<Cluster<string, RenderResult>> {
     console.log(`🚀 Initializing Puppeteer cluster with max ${config.MAX_CONCURRENT_RENDERS} concurrent renders...`);
+
+    // Initialize Content Health Check Manager
+    this.initializeContentHealthCheck();
+
+    // Initialize Virtual Scroll Manager
+    this.initializeVirtualScrollManager();
 
     const cluster = await Cluster.launch({
       concurrency: Cluster.CONCURRENCY_CONTEXT,
@@ -183,8 +195,8 @@ class BrowserManager {
     'platform.instagram.com',
 
     // Other performance-impacting services
-    'cdn.jsdelivr.net/npm/chart.js',
-    'cdnjs.cloudflare.com/ajax/libs/chart.js',
+    'cdn.jsdelivr.net/npm/chart',
+    'cdnjs.cloudflare.com/ajax/libs/chart',
     'gravatar.com',
     'www.gravatar.com',
     'disqus.com',
@@ -196,11 +208,11 @@ class BrowserManager {
    */
   private readonly BLACKLISTED_PATTERNS = [
     // Common analytics tracking paths
-    '/analytics.js',
-    '/gtm.js',
-    '/fbevents.js',
-    '/pixel.js',
-    '/tracking.js',
+    '/analytics',
+    '/gtm',
+    '/fbevents',
+    '/pixel',
+    '/tracking',
     '/collect',
     '/log',
     '/event',
@@ -213,11 +225,11 @@ class BrowserManager {
     '/googlead',
 
     // Social widgets
-    '/widgets.js',
-    '/embed.js',
-    '/social.js',
-    '/facebook.js',
-    '/twitter.js',
+    '/widgets',
+    '/embed',
+    '/social',
+    '/facebook',
+    '/twitter',
 
     // Resource waste
     '/favicon.ico',
@@ -270,6 +282,40 @@ class BrowserManager {
     }
   }
 
+  /**
+   * Initialize Content Health Check Manager
+   */
+  private initializeContentHealthCheck(): void {
+    // Get SEO protocol configuration from runtime config
+    // For now, use default configuration - this will be enhanced when we add runtime config support
+    const defaultConfig = {
+      enabled: true,
+      criticalSelectors: [
+        { selector: 'title', type: 'title' as const, required: true, description: 'Page title' },
+        { selector: 'meta[name="description"]', type: 'meta' as const, required: true, description: 'Meta description' },
+        { selector: 'h1', type: 'h1' as const, required: true, description: 'H1 heading' },
+        { selector: 'body', type: 'custom' as const, required: true, description: 'Body content' }
+      ],
+      minBodyLength: 500,
+      minTitleLength: 30,
+      metaDescriptionRequired: true,
+      h1Required: true,
+      failOnMissingCritical: true,
+    };
+
+    this.contentHealthCheck = new ContentHealthCheckManager(defaultConfig);
+    console.log('✅ Content Health Check Manager initialized with default configuration');
+  }
+
+  /**
+   * Initialize Virtual Scroll Manager
+   */
+  private initializeVirtualScrollManager(): void {
+    const defaultVirtualScrollConfig = VirtualScrollManager.getDefaultConfig();
+    this.virtualScrollManager = new VirtualScrollManager(defaultVirtualScrollConfig);
+    console.log('✅ Virtual Scroll Manager initialized with default configuration');
+  }
+
   private async renderPage(page: Page, url: string): Promise<RenderResult> {
     try {
       await page.setViewport({
@@ -292,9 +338,29 @@ class BrowserManager {
           const requestUrl = request.url();
           const resourceType = request.resourceType();
 
-          if (this.shouldBlockRequest(requestUrl, resourceType)) {
+          // Use blocking manager for dynamic rule-based blocking
+          const blockingResult = blockingManager.shouldBlockRequest(requestUrl, resourceType);
+
+          if (blockingResult.blocked || this.shouldBlockRequest(requestUrl, resourceType)) {
             blockedCount++;
-            request.abort();
+
+            // Apply blocking action from blocking manager
+            if (blockingResult.action === 'redirect' && blockingResult.options?.redirectUrl) {
+              // Note: redirect is not available in all Puppeteer versions, fallback to abort
+              try {
+                (request as any).redirect?.({
+                  url: blockingResult.options.redirectUrl,
+                });
+              } catch {
+                request.abort();
+              }
+            } else if (blockingResult.action === 'modify' && blockingResult.options?.modifyHeaders) {
+              request.continue({
+                headers: { ...request.headers(), ...blockingResult.options.modifyHeaders },
+              });
+            } else {
+              request.abort();
+            }
           } else {
             allowedCount++;
             request.continue();
@@ -334,25 +400,118 @@ class BrowserManager {
         }
       }
 
-      // Check for prerender-status-code meta tag
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const statusCode = await page.evaluate((): any => {
-        // @ts-ignore - Running in browser context
+      // Enhanced Soft 404 Detection for Enterprise SEO
+      const soft404Analysis = await page.evaluate((): { statusCode?: number; isSoft404: boolean; reasons: string[] } => {
+        const reasons: string[] = [];
+        let statusCode: number | undefined;
+
+        // Check explicit prerender-status-code meta tag
         const metaTag = document.querySelector('meta[name="prerender-status-code"]');
         if (metaTag) {
           const content = metaTag.getAttribute('content');
           if (content) {
             const code = parseInt(content, 10);
             if (!isNaN(code) && code >= 100 && code < 600) {
-              return code;
+              statusCode = code;
+              reasons.push(`Explicit meta tag: prerender-status-code=${code}`);
             }
           }
         }
-        return undefined;
-      }) as number | undefined;
 
-      if (statusCode) {
-        console.log(`📊 Detected prerender-status-code: ${statusCode}`);
+        // Intelligent Soft 404 Detection based on content analysis
+        const title = document.title?.toLowerCase() || '';
+        const bodyText = document.body?.innerText?.toLowerCase() || '';
+        const h1Text = document.querySelector('h1')?.innerText?.toLowerCase() || '';
+        const h2Texts = Array.from(document.querySelectorAll('h2')).map(h => h.innerText?.toLowerCase() || '');
+
+        // Check for 404 indicators in title
+        if (title.includes('404') || title.includes('not found') || title.includes('page not found')) {
+          reasons.push(`Title indicates 404: "${title}"`);
+        }
+
+        // Check for 404 indicators in main headings
+        if (h1Text.includes('404') || h1Text.includes('not found') || h1Text.includes('page not found')) {
+          reasons.push(`H1 indicates 404: "${h1Text}"`);
+        }
+
+        // Check H2s for 404 indicators
+        for (const h2Text of h2Texts) {
+          if (h2Text.includes('404') || h2Text.includes('not found') || h2Text.includes('page not found')) {
+            reasons.push(`H2 indicates 404: "${h2Text}"`);
+            break;
+          }
+        }
+
+        // Check for common 404 patterns in body text
+        const notFoundPatterns = [
+          '404 - page not found',
+          '404 error',
+          'this page cannot be found',
+          'the page you are looking for',
+          'sorry, the page you',
+          'we couldn\'t find the page',
+          'no results found',
+          'nothing found',
+          'url not found',
+          'resource not found',
+          'content not available'
+        ];
+
+        for (const pattern of notFoundPatterns) {
+          if (bodyText.includes(pattern)) {
+            reasons.push(`Body text pattern: "${pattern}"`);
+            break;
+          }
+        }
+
+        // Check for minimal content (likely 404 pages have very little content)
+        const wordCount = bodyText.split(/\s+/).filter(word => word.length > 0).length;
+        if (wordCount < 50 && (title.includes('not found') || h1Text.includes('not found'))) {
+          reasons.push(`Minimal content (${wordCount} words) with 404 indicators`);
+        }
+
+        // Check for 404-specific CSS classes or IDs
+        const notFoundSelectors = [
+          '.error-404',
+          '#error-404',
+          '.not-found',
+          '#not-found',
+          '.page-not-found',
+          '#page-not-found',
+          '.error-page',
+          '#error-page',
+          '[class*="404"]',
+          '[id*="404"]',
+          '[class*="not-found"]',
+          '[id*="not-found"]'
+        ];
+
+        for (const selector of notFoundSelectors) {
+          if (document.querySelector(selector)) {
+            reasons.push(`404-specific selector found: ${selector}`);
+            break;
+          }
+        }
+
+        // Determine if this is a soft 404
+        const isSoft404 = reasons.length > 0 && !statusCode;
+
+        // If we detected a soft 404 but no explicit status code, set 404
+        if (isSoft404 && !statusCode) {
+          statusCode = 404;
+          reasons.push('Soft 404 detected - setting status code to 404');
+        }
+
+        return { statusCode, isSoft404, reasons };
+      });
+
+      const { statusCode, isSoft404, reasons } = soft404Analysis;
+
+      if (isSoft404) {
+        console.log(`🚨 Soft 404 detected! Reasons: ${reasons.join(', ')}`);
+        console.log(`📊 Setting HTTP status code to ${statusCode} for SEO compliance`);
+      } else if (statusCode) {
+        console.log(`📊 Detected explicit prerender-status-code: ${statusCode}`);
       }
 
       // Log performance metrics
@@ -365,12 +524,72 @@ class BrowserManager {
         console.log(`⚡ Performance boost: ${blockedCount} unnecessary requests blocked to improve render speed`);
       }
 
+      // Apply Virtual Scroll & Lazy Load triggering if enabled
+      if (this.virtualScrollManager) {
+        try {
+          const scrollResult = await this.virtualScrollManager.triggerVirtualScroll(page, url);
+
+          if (scrollResult.success) {
+            console.log(`📜 Virtual Scroll completed: ${scrollResult.scrollSteps} steps, ${scrollResult.completionRate}% completion rate`);
+            // Update HTML after scrolling to capture new content
+            html = await page.content();
+          } else {
+            console.warn(`⚠️  Virtual Scroll encountered issues for ${url}`);
+          }
+        } catch (scrollError) {
+          console.warn(`⚠️  Virtual Scroll error for ${url}:`, (scrollError as Error).message);
+          // Don't fail the entire render if virtual scroll has issues
+        }
+      }
+
+      // Perform Content Health Check if enabled
+      if (this.contentHealthCheck) {
+        try {
+          const healthResult = await this.contentHealthCheck.checkPageHealth(page, url);
+
+          // If health check fails and configured to fail on missing critical elements
+          if (!healthResult.passed && this.contentHealthCheck.config?.failOnMissingCritical) {
+            const hasErrors = healthResult.issues.some(issue => issue.type === 'error');
+            if (hasErrors) {
+              console.warn(`⚠️  Content Health Check failed for ${url} - returning 503 Service Unavailable`);
+              return {
+                html: '<!DOCTYPE html><html><head><title>Service Unavailable</title></head><body><h1>503 Service Unavailable</h1><p>Content validation failed. Please try again later.</p></body></html>',
+                statusCode: 503
+              };
+            }
+          }
+
+          // Log health score for monitoring
+          console.log(`🏥 Content Health Score: ${healthResult.score}/100 for ${url}`);
+
+        } catch (healthError) {
+          console.warn(`⚠️  Content Health Check error for ${url}:`, (healthError as Error).message);
+          // Don't fail the entire render if health check has issues
+        }
+      }
+
       return { html, statusCode };
     } catch (error) {
       console.error(`❌ Rendering failed for ${url}:`, (error as Error).message);
       const renderError = error as Error & { url?: string; renderError?: boolean };
       renderError.url = url;
       renderError.renderError = true;
+
+      // Capture forensics data for debugging
+      try {
+        forensicsCollector.captureForensics(url, error as Error, {
+          userAgent: await page.evaluate('navigator.userAgent'),
+          viewport: page.viewport(),
+          headers: {},
+          waitStrategy: 'networkidle0',
+          timeout: config.PUPPETEER_TIMEOUT
+        }, page).catch((forensicsError: Error) => {
+          console.warn('⚠️  Failed to capture forensics data:', forensicsError.message);
+        });
+      } catch (forensicsError) {
+        console.warn('⚠️  Forensics collection error:', (forensicsError as Error).message);
+      }
+
       throw renderError;
     }
   }
@@ -392,6 +611,32 @@ class BrowserManager {
 
   getMetrics(): QueueMetrics {
     return { ...this.metrics };
+  }
+
+  async getBrowser(): Promise<any> {
+    const cluster = await this.getCluster();
+
+    // Get a browser instance from the cluster
+    // @ts-ignore - Access internal browser instance
+    if ((cluster as any).browser) {
+      return (cluster as any).browser;
+    }
+
+    // Create a temporary browser instance
+    const puppeteer = await import('puppeteer');
+    return puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+      ],
+    });
   }
 
   async close(): Promise<void> {

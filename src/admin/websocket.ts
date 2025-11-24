@@ -5,8 +5,8 @@
 
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import metricsCollector from './metrics-collector.js';
-import cache from '../cache.js';
+import metricsCollector from './metrics-collector';
+import cache from '../cache';
 
 let io: Server | null = null;
 

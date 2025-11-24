@@ -1,4 +1,4 @@
-import { Config } from './config.js';
+import { Config } from './config';
 
 export interface CacheDecision {
   shouldRender: boolean;

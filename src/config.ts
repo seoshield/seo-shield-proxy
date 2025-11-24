@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { CriticalSelector } from './admin/content-health-check';
 
 // Load environment variables from .env file
 dotenv.config();
@@ -20,6 +21,281 @@ export interface Config {
   CACHE_BY_DEFAULT: boolean;
   CACHE_META_TAG: string;
   ADMIN_PASSWORD: string;
+  USER_AGENT: string;
+}
+
+/**
+ * SEO Protocol configuration
+ */
+export interface SeoProtocolConfig {
+  // Content Health Check protocol
+  contentHealthCheck: {
+    enabled: boolean;
+    criticalSelectors: CriticalSelector[];
+    minBodyLength: number;
+    minTitleLength: number;
+    metaDescriptionRequired: boolean;
+    h1Required: boolean;
+    failOnMissingCritical: boolean;
+  };
+
+  // Virtual Scroll & Lazy Load protocol
+  virtualScroll: {
+    enabled: boolean;
+    scrollSteps: number;
+    scrollInterval: number;
+    maxScrollHeight: number;
+    waitAfterScroll: number;
+    scrollSelectors: string[];
+    infiniteScrollSelectors: string[];
+    lazyImageSelectors: string[];
+    triggerIntersectionObserver: boolean;
+    maxScrollTime: number;
+    scrollSettleTime: number;
+  };
+
+  // ETag and 304 strategy
+  etagStrategy: {
+    enabled: boolean;
+    hashAlgorithm: 'md5' | 'sha256';
+    enable304Responses: boolean;
+    checkContentChanges: boolean;
+    ignoredElements: string[];
+    significantChanges: boolean;
+  };
+
+  // Cluster Mode configuration
+  clusterMode: {
+    enabled: boolean;
+    useRedisQueue: boolean;
+    maxWorkers: number;
+    jobTimeout: number;
+    retryAttempts: number;
+    retryDelay: number;
+    browser: {
+      headless: boolean;
+      args: string[];
+    };
+  };
+
+  // Shadow DOM penetration
+  shadowDom: {
+    enabled: boolean;
+    deepSerialization: boolean;
+    includeShadowContent: boolean;
+    flattenShadowTrees: boolean;
+    customElements: string[];
+    preserveShadowBoundaries: boolean;
+    extractCSSVariables: boolean;
+    extractComputedStyles: boolean;
+  };
+
+  // Circuit Breaker configuration
+  circuitBreaker: {
+    enabled: boolean;
+    errorThreshold: number;
+    resetTimeout: number;
+    monitoringPeriod: number;
+    fallbackToStale: boolean;
+    halfOpenMaxCalls: number;
+    failureThreshold: number;
+    successThreshold: number;
+    timeoutThreshold: number;
+  };
+}
+
+/**
+ * Snapshot result interface
+ */
+export interface SnapshotResult {
+  id: string;
+  url: string;
+  timestamp: Date;
+  screenshot: string;
+  html: string;
+  title: string;
+  description: string;
+  size: number;
+  ttl: number;
+  performance: {
+    renderTime: number;
+    resourceCount: number;
+    errorCount: number;
+  };
+}
+
+/**
+ * Diff result interface
+ */
+export interface DiffResult {
+  id: string;
+  beforeId: string;
+  afterId: string;
+  timestamp: Date;
+  diffScore: number;
+  diffImage: string;
+  beforeSnapshot: SnapshotResult;
+  afterSnapshot: SnapshotResult;
+  seoComparison: {
+    titleChanged: boolean;
+    metaChanged: boolean;
+    h1Changed: boolean;
+    contentChanged: boolean;
+  };
+  impact: 'low' | 'medium' | 'high' | 'critical';
+  recommendations: string[];
+}
+
+/**
+ * Render error interface
+ */
+export interface RenderError {
+  id: string;
+  timestamp: Date;
+  error: string;
+  url: string;
+  context: {
+    userAgent: string;
+    referer: string;
+    ip: string;
+  };
+  stack?: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  resolved: boolean;
+  category: 'timeout' | 'network' | 'javascript' | 'resource' | 'other';
+}
+
+/**
+ * Error pattern interface
+ */
+export interface ErrorPattern {
+  id: string;
+  name: string;
+  pattern: string;
+  type: 'error' | 'console' | 'network';
+  frequency: number;
+  lastSeen: Date;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  autoResolve: boolean;
+}
+
+/**
+ * Render job interface
+ */
+export interface RenderJob {
+  url: string;
+  options: {
+    userAgent?: string;
+    viewport?: { width: number; height: number };
+    timeout?: number;
+    waitUntil?: string;
+  };
+  priority: 'low' | 'medium' | 'high';
+  timestamp: Date;
+  id: string;
+}
+
+/**
+ * Render job result interface
+ */
+export interface RenderJobResult {
+  success: boolean;
+  screenshot?: string;
+  html?: string;
+  error?: string;
+  performance: {
+    renderTime: number;
+    resourceCount: number;
+    errorCount: number;
+  };
+  metadata: {
+    title: string;
+    description: string;
+    size: number;
+  };
+}
+
+/**
+ * Snapshot options interface
+ */
+export interface SnapshotOptions {
+  fullPage?: boolean;
+  quality?: number;
+  format?: 'png' | 'jpeg' | 'webp';
+  clip?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  omitBackground?: boolean;
+}
+
+/**
+ * Runtime configuration interface for admin features
+ */
+export interface RuntimeConfig {
+  // SEO Protocol configuration
+  seoProtocols?: SeoProtocolConfig;
+
+  // Cache warmer configuration
+  sitemapUrl?: string;
+  warmupSchedule?: string;
+  maxConcurrentWarmups?: number;
+
+  // Snapshot service configuration
+  snapshotStorage?: string;
+  diffThreshold?: number;
+
+  // Hotfix engine configuration
+  hotfixRules?: Array<{
+    id: string;
+    name: string;
+    urlPattern: string;
+    isActive: boolean;
+    injectionType: 'meta' | 'script' | 'style' | 'custom';
+    content: string;
+    position: 'head' | 'body_start' | 'body_end';
+    priority: number;
+    createdAt: Date;
+    updatedAt: Date;
+    expiresAt?: Date;
+    description?: string;
+    userAgents?: string[];
+    headers?: Record<string, string>;
+    actions?: Array<{
+      type: 'replace' | 'prepend' | 'append' | 'remove' | 'attribute';
+      selector: string;
+      value?: string;
+      attribute?: string;
+    }>;
+  }>;
+
+  // Blocking manager configuration
+  blockingRules?: Array<{
+    id: string;
+    name: string;
+    pattern: string;
+    isActive: boolean;
+    blockType: 'domain' | 'url' | 'userAgent' | 'ip' | 'header';
+    reason: string;
+    createdAt: Date;
+    hitCount: number;
+  }>;
+
+  // User agent for SSR
+  userAgent?: string;
+
+  // Admin authentication
+  adminAuth?: {
+    enabled: boolean;
+    username: string;
+    password: string;
+  };
+
+  // General admin settings
+  [key: string]: any;
 }
 
 /**
@@ -65,12 +341,17 @@ const config: Config = {
 
   // Admin panel password
   ADMIN_PASSWORD: process.env['ADMIN_PASSWORD'] || 'admin123',
+
+  // User agent for SSR
+  USER_AGENT: process.env['USER_AGENT'] || 'Mozilla/5.0 (compatible; SEOShieldProxy/1.0; +https://github.com/seoshield/seo-shield-proxy)',
 };
 
 // Validate required configuration
 if (!config.TARGET_URL) {
   console.error('❌ ERROR: TARGET_URL environment variable is required');
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'test') {
+    process.exit(1);
+  }
 }
 
 // Validate TARGET_URL format
@@ -78,7 +359,9 @@ try {
   new URL(config.TARGET_URL);
 } catch (error) {
   console.error('❌ ERROR: TARGET_URL must be a valid URL (e.g., https://example.com)');
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'test') {
+    process.exit(1);
+  }
 }
 
 // Log configuration

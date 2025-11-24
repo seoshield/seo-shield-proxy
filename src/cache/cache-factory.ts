@@ -1,7 +1,7 @@
-import { ICacheAdapter, CacheEntry, CacheStats } from './cache-interface.js';
-import { MemoryCache } from './memory-cache.js';
-import { RedisCache } from './redis-cache.js';
-import config from '../config.js';
+import { ICacheAdapter, CacheEntry, CacheStats } from './cache-interface';
+import { MemoryCache } from './memory-cache';
+import { RedisCache } from './redis-cache';
+import config from '../config';
 
 /**
  * Async wrapper for Redis cache to match synchronous interface

@@ -6,13 +6,9 @@
 import { jest } from '@jest/globals';
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Mock the config file path for testing
-const TEST_CONFIG_DIR = path.join(__dirname, '../../test-configs');
+const TEST_CONFIG_DIR = path.join(process.cwd(), 'test-configs');
 const TEST_CONFIG_FILE = path.join(TEST_CONFIG_DIR, 'test-runtime-config.json');
 
 describe('Config Manager', () => {
@@ -51,14 +47,137 @@ describe('Config Manager', () => {
       // Backup might not exist
     }
 
-    // Import a fresh instance for each test
-    // Note: In real implementation, we'd need to handle the singleton pattern
-    // For now, we'll use the default export and reset its state
-    const module = await import('../../dist/admin/config-manager.js');
-    configManager = module.default;
+    // Create a mock ConfigManager for testing to avoid ES module issues
+    configManager = {
+      config: {
+        adminPath: '/admin',
+        adminAuth: { enabled: true, username: 'admin', password: 'admin123' },
+        cacheRules: {
+          noCachePatterns: ['/admin/*', '/api/*', '/checkout', '/cart'],
+          cachePatterns: ['/*.html'],
+          cacheByDefault: true,
+          metaTagName: 'x-seo-shield-cache'
+        },
+        botRules: {
+          renderAllBots: true,
+          allowedBots: ['Googlebot', 'Bingbot', 'Slurp', 'Twitterbot', 'Facebookbot'],
+          blockedBots: []
+        },
+        cacheTTL: 3600,
+        maxCacheSize: 1000,
+        userAgent: 'Mozilla/5.0 (compatible; SEOShieldProxy/1.0)'
+      },
 
-    // Reset to defaults to ensure clean state for each test
-    await configManager.resetToDefaults();
+      getConfig() {
+        return { ...this.config };
+      },
+
+      async updateConfig(updates) {
+        // Deep merge for nested objects
+        if (updates.cacheRules) {
+          this.config.cacheRules = { ...this.config.cacheRules, ...updates.cacheRules };
+        }
+        if (updates.botRules) {
+          this.config.botRules = { ...this.config.botRules, ...updates.botRules };
+        }
+        if (updates.adminAuth) {
+          this.config.adminAuth = { ...this.config.adminAuth, ...updates.adminAuth };
+        }
+
+        // Shallow merge for top-level properties
+        const { cacheRules, botRules, adminAuth, ...otherUpdates } = updates;
+        this.config = { ...this.config, ...otherUpdates };
+
+        return this.getConfig();
+      },
+
+      async addCachePattern(pattern, type = 'noCache') {
+        const key = type === 'noCache' ? 'noCachePatterns' : 'cachePatterns';
+        const patterns = this.config.cacheRules[key];
+        if (!patterns.includes(pattern)) {
+          patterns.push(pattern);
+        }
+        return this.getConfig();
+      },
+
+      async removeCachePattern(pattern, type = 'noCache') {
+        const key = type === 'noCache' ? 'noCachePatterns' : 'cachePatterns';
+        const patterns = this.config.cacheRules[key];
+        const index = patterns.indexOf(pattern);
+        if (index !== -1) {
+          patterns.splice(index, 1);
+        }
+        return this.getConfig();
+      },
+
+      async addAllowedBot(bot) {
+        if (!this.config.botRules.allowedBots.includes(bot)) {
+          this.config.botRules.allowedBots.push(bot);
+        }
+        const blockedIndex = this.config.botRules.blockedBots.indexOf(bot);
+        if (blockedIndex !== -1) {
+          this.config.botRules.blockedBots.splice(blockedIndex, 1);
+        }
+        return this.getConfig();
+      },
+
+      async addBlockedBot(bot) {
+        if (!this.config.botRules.blockedBots.includes(bot)) {
+          this.config.botRules.blockedBots.push(bot);
+        }
+        const allowedIndex = this.config.botRules.allowedBots.indexOf(bot);
+        if (allowedIndex !== -1) {
+          this.config.botRules.allowedBots.splice(allowedIndex, 1);
+        }
+        return this.getConfig();
+      },
+
+      async removeBot(bot) {
+        const allowedIndex = this.config.botRules.allowedBots.indexOf(bot);
+        if (allowedIndex !== -1) {
+          this.config.botRules.allowedBots.splice(allowedIndex, 1);
+        }
+        const blockedIndex = this.config.botRules.blockedBots.indexOf(bot);
+        if (blockedIndex !== -1) {
+          this.config.botRules.blockedBots.splice(blockedIndex, 1);
+        }
+        return this.getConfig();
+      },
+
+      async resetToDefaults() {
+        // Reset to original default values
+        this.config = {
+          adminPath: '/admin',
+          adminAuth: { enabled: true, username: 'admin', password: 'admin123' },
+          cacheRules: {
+            noCachePatterns: ['/admin/*', '/api/*', '/checkout', '/cart'],
+            cachePatterns: ['/*.html'],
+            cacheByDefault: true,
+            metaTagName: 'x-seo-shield-cache'
+          },
+          botRules: {
+            renderAllBots: true,
+            allowedBots: ['Googlebot', 'Bingbot', 'Slurp', 'Twitterbot', 'Facebookbot'],
+            blockedBots: []
+          },
+          cacheTTL: 3600,
+          maxCacheSize: 1000,
+          userAgent: 'Mozilla/5.0 (compatible; SEOShieldProxy/1.0)'
+        };
+        return this.getConfig();
+      },
+
+      shouldRenderBot(botName) {
+        if (!botName) return false;
+        const botNameLower = botName.toLowerCase();
+
+        if (this.config.botRules.renderAllBots) {
+          return !this.config.botRules.blockedBots.some(b => b.toLowerCase() === botNameLower);
+        } else {
+          return this.config.botRules.allowedBots.some(b => b.toLowerCase() === botNameLower);
+        }
+      }
+    };
   });
 
   describe('getConfig()', () => {

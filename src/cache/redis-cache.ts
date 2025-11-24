@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
-import config from '../config.js';
-import { ICacheAdapter, CacheStats, CacheEntry } from './cache-interface.js';
+import config from '../config';
+import { ICacheAdapter, CacheStats, CacheEntry } from './cache-interface';
 
 /**
  * Redis cache adapter

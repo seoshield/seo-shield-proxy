@@ -1,8 +1,8 @@
-import { CacheFactory } from './cache/cache-factory.js';
-import { ICacheAdapter} from './cache/cache-interface.js';
+import { CacheFactory } from './cache/cache-factory';
+import { ICacheAdapter} from './cache/cache-interface';
 
 // Re-export types for backward compatibility
-export type { CacheStats, CacheEntry } from './cache/cache-interface.js';
+export type { CacheStats, CacheEntry } from './cache/cache-interface';
 
 /**
  * Cache instance - initialized asynchronously

@@ -1,0 +1,143 @@
+
+> seo-shield-proxy@1.0.0 build
+> tsc
+
+src/admin/admin-routes.ts(487,16): error TS2365: Operator '>' cannot be applied to types '{ added: number; skipped: number; duplicates: number; }' and 'number'.
+src/admin/blocking-manager.ts(78,36): error TS2339: Property 'blockingRules' does not exist on type 'RuntimeConfig'.
+src/admin/blocking-manager.ts(113,9): error TS2353: Object literal may only specify known properties, and 'blockingRules' does not exist in type 'Partial<RuntimeConfig>'.
+src/admin/cluster-manager.ts(174,32): error TS2769: No overload matches this call.
+  Overload 1 of 8, '(options: RedisOptions): Redis', gave the following error.
+    Object literal may only specify known properties, and 'retryDelayOnFailover' does not exist in type 'RedisOptions'.
+  Overload 2 of 8, '(port: number): Redis', gave the following error.
+    Argument of type '{ host: string; port: number; password: string; db: number; retryDelayOnFailover: number; maxRetriesPerRequest: number; }' is not assignable to parameter of type 'number'.
+  Overload 3 of 8, '(path: string): Redis', gave the following error.
+    Argument of type '{ host: string; port: number; password: string; db: number; retryDelayOnFailover: number; maxRetriesPerRequest: number; }' is not assignable to parameter of type 'string'.
+src/admin/cluster-manager.ts(474,9): error TS2322: Type 'Job<RenderJob, RenderJobResult, string>[]' is not assignable to type 'number'.
+src/admin/cluster-manager.ts(475,9): error TS2322: Type 'Job<RenderJob, RenderJobResult, string>[]' is not assignable to type 'number'.
+src/admin/cluster-manager.ts(476,9): error TS2322: Type 'Job<RenderJob, RenderJobResult, string>[]' is not assignable to type 'number'.
+src/admin/cluster-manager.ts(477,9): error TS2322: Type 'Job<RenderJob, RenderJobResult, string>[]' is not assignable to type 'number'.
+src/admin/cluster-manager.ts(478,9): error TS2322: Type 'Job<RenderJob, RenderJobResult, string>[]' is not assignable to type 'number'.
+src/admin/content-health-check.ts(145,21): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(146,27): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(147,26): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(148,24): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(246,28): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(248,27): error TS2339: Property 'selector' does not exist on type 'string'.
+src/admin/content-health-check.ts(252,35): error TS2339: Property 'required' does not exist on type 'string'.
+src/admin/content-health-check.ts(255,38): error TS2339: Property 'selector' does not exist on type 'string'.
+src/admin/content-health-check.ts(256,78): error TS2339: Property 'description' does not exist on type 'string'.
+src/admin/content-health-check.ts(256,108): error TS2339: Property 'selector' does not exist on type 'string'.
+src/admin/content-health-check.ts(263,38): error TS2339: Property 'selector' does not exist on type 'string'.
+src/admin/content-health-check.ts(264,78): error TS2339: Property 'description' does not exist on type 'string'.
+src/admin/content-health-check.ts(264,108): error TS2339: Property 'selector' does not exist on type 'string'.
+src/admin/content-health-check.ts(272,36): error TS2339: Property 'selector' does not exist on type 'string'.
+src/admin/content-health-check.ts(273,62): error TS2339: Property 'selector' does not exist on type 'string'.
+src/admin/content-health-check.ts(285,30): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(288,25): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(291,23): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(292,29): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(293,23): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(296,27): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(297,28): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(300,24): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(303,24): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(306,32): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/content-health-check.ts(536,30): error TS2304: Cannot find name 'ContentHealthConfig'.
+src/admin/etag-service.ts(14,40): error TS2345: Argument of type '{ enabled: boolean; hashAlgorithm: "md5" | "sha256"; enable304Responses: boolean; checkContentChanges: boolean; }' is not assignable to parameter of type 'ETagConfig'.
+  Type '{ enabled: boolean; hashAlgorithm: "md5" | "sha256"; enable304Responses: boolean; checkContentChanges: boolean; }' is missing the following properties from type 'ETagConfig': ignoredElements, significantChanges
+src/admin/forensics-collector.ts(316,42): error TS2345: Argument of type 'RenderError' is not assignable to parameter of type 'string'.
+src/admin/forensics-collector.ts(364,41): error TS2345: Argument of type '{ frequency: number; lastSeen: Date; description: string; id: string; name: string; pattern: RegExp; type: "error"; } | { frequency: number; lastSeen: Date; description: string; id: string; name: string; pattern: RegExp; type: "console"; }' is not assignable to parameter of type 'ErrorPattern'.
+  Type '{ frequency: number; lastSeen: Date; description: string; id: string; name: string; pattern: RegExp; type: "error"; }' is not assignable to type 'ErrorPattern'.
+    Types of property 'pattern' are incompatible.
+      Type 'RegExp' is not assignable to type 'string'.
+src/admin/forensics-collector.ts(391,23): error TS2352: Conversion of type '{ url: string; size: number; ttl: number; }' to type 'RenderError' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ url: string; size: number; ttl: number; }' is missing the following properties from type 'RenderError': id, timestamp, error, context, and 3 more.
+src/admin/forensics-collector.ts(426,23): error TS2352: Conversion of type 'string' to type 'RenderError' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+src/admin/forensics-collector.ts(492,25): error TS2352: Conversion of type '{ url: string; size: number; ttl: number; }' to type 'RenderError' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ url: string; size: number; ttl: number; }' is missing the following properties from type 'RenderError': id, timestamp, error, context, and 3 more.
+src/admin/forensics-collector.ts(528,7): error TS2322: Type 'number' is not assignable to type 'boolean'.
+src/admin/hotfix-engine.ts(72,34): error TS2339: Property 'hotfixRules' does not exist on type 'RuntimeConfig'.
+src/admin/hotfix-engine.ts(103,9): error TS2353: Object literal may only specify known properties, and 'hotfixRules' does not exist in type 'Partial<RuntimeConfig>'.
+src/admin/seo-integration.ts(20,14): error TS2339: Property 'isBot' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+src/admin/seo-integration.ts(270,15): error TS2339: Property 'isBot' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+src/admin/seo-protocols-service.ts(44,62): error TS2345: Argument of type '{ enabled: boolean; scrollSteps: number; scrollInterval: number; maxScrollHeight: number; waitAfterScroll: number; }' is not assignable to parameter of type 'VirtualScrollConfig'.
+  Type '{ enabled: boolean; scrollSteps: number; scrollInterval: number; maxScrollHeight: number; waitAfterScroll: number; }' is missing the following properties from type 'VirtualScrollConfig': scrollSelectors, infiniteScrollSelectors, lazyImageSelectors, triggerIntersectionObserver, and 2 more.
+src/admin/seo-protocols-service.ts(56,50): error TS2345: Argument of type '{ enabled: boolean; useRedisQueue: boolean; maxWorkers: number; jobTimeout: number; retryAttempts: number; retryDelay: number; }' is not assignable to parameter of type 'ClusterConfig'.
+  Property 'browser' is missing in type '{ enabled: boolean; useRedisQueue: boolean; maxWorkers: number; jobTimeout: number; retryAttempts: number; retryDelay: number; }' but required in type 'ClusterConfig'.
+src/admin/seo-protocols-service.ts(63,58): error TS2345: Argument of type '{ enabled: boolean; deepSerialization: boolean; includeShadowContent: boolean; flattenShadowTrees: boolean; }' is not assignable to parameter of type 'ShadowDOMConfig'.
+  Type '{ enabled: boolean; deepSerialization: boolean; includeShadowContent: boolean; flattenShadowTrees: boolean; }' is missing the following properties from type 'ShadowDOMConfig': customElements, preserveShadowBoundaries, extractCSSVariables, extractComputedStyles
+src/admin/seo-protocols-service.ts(69,64): error TS2345: Argument of type '{ enabled: boolean; errorThreshold: number; resetTimeout: number; monitoringPeriod: number; fallbackToStale: boolean; }' is not assignable to parameter of type 'CircuitBreakerConfig'.
+  Type '{ enabled: boolean; errorThreshold: number; resetTimeout: number; monitoringPeriod: number; fallbackToStale: boolean; }' is missing the following properties from type 'CircuitBreakerConfig': halfOpenMaxCalls, failureThreshold, successThreshold, timeoutThreshold
+src/admin/shadow-dom-extractor.ts(90,26): error TS2339: Property 'lightDOM' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(91,28): error TS2339: Property 'shadowDOMs' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(92,27): error TS2339: Property 'flattened' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(92,47): error TS2339: Property 'lightDOM' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(94,36): error TS2339: Property 'shadowDOMs' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(95,37): error TS2339: Property 'extractedElements' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(96,32): error TS2339: Property 'cssVariables' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(97,31): error TS2339: Property 'maxDepth' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(100,26): error TS2339: Property 'warnings' does not exist on type 'unknown'.
+src/admin/shadow-dom-extractor.ts(395,5): error TS2740: Type '{}' is missing the following properties from type 'string[]': length, pop, push, concat, and 29 more.
+src/admin/shadow-dom-extractor.ts(423,5): error TS2322: Type 'unknown' is not assignable to type 'Record<string, string>'.
+  Index signature for type 'string' is missing in type '{}'.
+src/admin/shadow-dom-extractor.ts(437,5): error TS2322: Type 'unknown' is not assignable to type 'boolean'.
+src/admin/shadow-dom-extractor.ts(480,5): error TS2739: Type '{}' is missing the following properties from type '{ totalElements: number; shadowHosts: number; openShadowRoots: number; closedShadowRoots: number; customElements: string[]; }': totalElements, shadowHosts, openShadowRoots, closedShadowRoots, customElements
+src/admin/snapshot-service.ts(211,10): error TS2339: Property 'bandjoin' does not exist on type 'Sharp'.
+src/admin/snapshot-service.ts(250,13): error TS2739: Type '{ id: string; url: string; beforeId: string; afterId: string; timestamp: Date; diffScore: number; diffImage: string; beforeSnapshot: SnapshotResult; afterSnapshot: SnapshotResult; }' is missing the following properties from type 'DiffResult': seoComparison, impact, recommendations
+src/admin/snapshot-service.ts(280,23): error TS2352: Conversion of type 'string' to type 'SnapshotResult' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+src/admin/snapshot-service.ts(293,23): error TS2352: Conversion of type 'string' to type 'DiffResult' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+src/admin/snapshot-service.ts(312,28): error TS2352: Conversion of type '{ url: string; size: number; ttl: number; }' to type 'SnapshotResult' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ url: string; size: number; ttl: number; }' is missing the following properties from type 'SnapshotResult': id, timestamp, screenshot, html, and 5 more.
+src/admin/snapshot-service.ts(335,7): error TS2322: Type 'number' is not assignable to type 'boolean'.
+src/admin/snapshot-service.ts(357,26): error TS2352: Conversion of type '{ url: string; size: number; ttl: number; }' to type 'SnapshotResult' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ url: string; size: number; ttl: number; }' is missing the following properties from type 'SnapshotResult': id, timestamp, screenshot, html, and 5 more.
+src/admin/snapshot-service.ts(391,44): error TS2345: Argument of type 'SnapshotResult' is not assignable to parameter of type 'string'.
+src/admin/snapshot-service.ts(402,36): error TS2345: Argument of type 'DiffResult' is not assignable to parameter of type 'string'.
+src/admin/snapshot-service.ts(424,9): error TS2353: Object literal may only specify known properties, and 'userAgent' does not exist in type 'SnapshotOptions'.
+src/admin/snapshot-service.ts(430,9): error TS2353: Object literal may only specify known properties, and 'userAgent' does not exist in type 'SnapshotOptions'.
+src/admin/snapshot-service.ts(702,24): error TS2352: Conversion of type '{ url: string; size: number; ttl: number; }' to type 'DiffResult' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ url: string; size: number; ttl: number; }' is missing the following properties from type 'DiffResult': id, beforeId, afterId, timestamp, and 7 more.
+src/admin/snapshot-service.ts(735,28): error TS2352: Conversion of type '{ url: string; size: number; ttl: number; }' to type 'DiffResult' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ url: string; size: number; ttl: number; }' is missing the following properties from type 'DiffResult': id, beforeId, afterId, timestamp, and 7 more.
+src/admin/ua-simulator.ts(365,13): error TS2322: Type 'unknown' is not assignable to type 'string'.
+src/admin/ua-simulator.ts(505,45): error TS2345: Argument of type 'SimulationResult' is not assignable to parameter of type 'string'.
+src/admin/virtual-scroll-manager.ts(214,31): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(226,28): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(234,11): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(239,29): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(252,40): error TS2339: Property 'scrollSteps' does not exist on type 'unknown'.
+src/admin/virtual-scroll-manager.ts(253,68): error TS2339: Property 'finalHeight' does not exist on type 'unknown'.
+src/admin/virtual-scroll-manager.ts(257,18): error TS2339: Property 'waitForTimeout' does not exist on type 'Page'.
+src/admin/virtual-scroll-manager.ts(276,28): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(298,16): error TS2339: Property 'waitForTimeout' does not exist on type 'Page'.
+src/admin/virtual-scroll-manager.ts(321,26): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(324,41): error TS2304: Cannot find name 'HTMLImageElement'.
+src/admin/virtual-scroll-manager.ts(357,16): error TS2339: Property 'waitForTimeout' does not exist on type 'Page'.
+src/admin/virtual-scroll-manager.ts(374,26): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(380,29): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(385,43): error TS2339: Property 'getBoundingClientRect' does not exist on type 'unknown'.
+src/admin/virtual-scroll-manager.ts(386,41): error TS2339: Property 'getBoundingClientRect' does not exist on type 'unknown'.
+src/admin/virtual-scroll-manager.ts(387,27): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(399,7): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(402,7): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(405,16): error TS2339: Property 'waitForTimeout' does not exist on type 'Page'.
+src/admin/virtual-scroll-manager.ts(416,7): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(416,77): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(419,7): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(422,7): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(425,7): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(428,7): error TS2304: Cannot find name 'window'.
+src/admin/virtual-scroll-manager.ts(431,16): error TS2339: Property 'waitForTimeout' does not exist on type 'Page'.
+src/admin/virtual-scroll-manager.ts(445,21): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(446,21): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(447,20): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/admin/virtual-scroll-manager.ts(448,23): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/browser.ts(409,25): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/browser.ts(422,23): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/browser.ts(423,26): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/browser.ts(424,24): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/browser.ts(425,36): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/browser.ts(425,80): error TS2339: Property 'innerText' does not exist on type 'unknown'.
+src/browser.ts(490,15): error TS2584: Cannot find name 'document'. Do you need to change your target library? Try changing the 'lib' compiler option to include 'dom'.
+src/server-with-seo.ts(34,56): error TS2339: Property 'isBot' does not exist on type 'Request<ParamsDictionary, any, any, ParsedQs, Record<string, any>>'.
+src/server-with-seo.ts(59,13): error TS2339: Property 'isBot' does not exist on type 'Request<{}, any, any, ParsedQs, Record<string, any>>'.

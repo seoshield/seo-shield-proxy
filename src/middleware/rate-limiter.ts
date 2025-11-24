@@ -1,5 +1,5 @@
 import rateLimit from 'express-rate-limit';
-import config from '../config.js';
+import config from '../config';
 
 /**
  * General rate limiter for all requests
@@ -35,7 +35,14 @@ export const ssrRateLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     // Use IP + User-Agent as key to prevent simple IP rotation
-    return `${req.ip}-${req.get('User-Agent')?.slice(0, 50) || 'unknown'}`;
+    // Handle IPv6 by taking first 64 bits to avoid individual user tracking
+    const ip = req.ip || 'unknown';
+    const userAgent = req.get('User-Agent')?.slice(0, 50) || 'unknown';
+
+    // For IPv6, take only the first 64 bits (16 characters) to avoid individual user tracking
+    const normalizedIp = ip.includes(':') ? ip.substring(0, 16) : ip;
+
+    return `${normalizedIp}-${userAgent}`;
   },
 });
 

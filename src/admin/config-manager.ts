@@ -5,12 +5,9 @@
 
 import fs from 'fs/promises';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const CONFIG_FILE = path.join(__dirname, '../../runtime-config.json');
+// For CommonJS compatibility, use process.cwd() and resolve path
+const CONFIG_FILE = path.join(process.cwd(), 'src', 'admin', 'runtime-config.json');
 
 export interface AdminAuth {
   enabled: boolean;
@@ -38,6 +35,59 @@ export interface RuntimeConfig {
   botRules: BotRules;
   cacheTTL: number;
   maxCacheSize: number;
+  userAgent?: string;
+
+  // Hotfix engine configuration
+  hotfixRules?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    enabled: boolean;
+    priority: number;
+    urlPattern: string;
+    conditions: {
+      userAgent?: string;
+      headers?: Record<string, string>;
+      query?: Record<string, string>;
+    };
+    actions: Array<{
+      type: 'replace' | 'prepend' | 'append' | 'remove' | 'attribute';
+      selector: string;
+      target?: string;
+      value?: string;
+      regex?: string;
+    }>;
+    createdAt: Date | string;
+    updatedAt: Date | string;
+    createdBy?: string;
+    expiresAt?: Date | string;
+  }>;
+
+  // Blocking manager configuration
+  blockingRules?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    enabled: boolean;
+    type: 'domain' | 'url' | 'pattern' | 'resource';
+    pattern: string;
+    action: 'block' | 'redirect' | 'modify';
+    options?: {
+      redirectUrl?: string;
+      modifyHeaders?: Record<string, string>;
+      responseCode?: number;
+      responseText?: string;
+    };
+    priority: number;
+    stats: {
+      blockedCount: number;
+      lastBlocked?: Date;
+      totalRequests: number;
+    };
+    createdAt: Date | string;
+    updatedAt: Date | string;
+    expiresAt?: Date | string;
+  }>;
 }
 
 class ConfigManager {
@@ -50,7 +100,7 @@ class ConfigManager {
       adminAuth: {
         enabled: true,
         username: 'admin',
-        password: 'seo-shield-2024', // Should be changed in production
+        password: 'seo-shield-2025', // Should be changed in production
       },
       cacheRules: {
         noCachePatterns: ['/checkout', '/cart', '/admin/*', '/api/*'],

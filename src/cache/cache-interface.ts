@@ -36,7 +36,7 @@ export interface ICacheAdapter {
   /**
    * Set cache entry
    */
-  set(key: string, value: string): boolean;
+  set(key: string, value: string, ttl?: number): boolean;
 
   /**
    * Delete cache entry

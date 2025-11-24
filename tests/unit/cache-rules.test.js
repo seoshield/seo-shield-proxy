@@ -72,7 +72,7 @@ describe('CacheRules Module', () => {
 
     test('should handle invalid regex gracefully', () => {
       const rules = new CacheRules({
-        NO_CACHE_PATTERNS: '/[invalid(/',
+        NO_CACHE_PATTERNS: '/[invalid/',
         CACHE_PATTERNS: '',
         CACHE_BY_DEFAULT: 'true',
         CACHE_META_TAG: 'x-cache',
