@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -235,7 +235,7 @@ export default function CacheAnalytics() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {sortedAndFilteredEntries.map((entry, index) => {
+              {sortedAndFilteredEntries.map((entry) => {
                 const ttlStatus = getTtlStatus(entry);
                 return (
                   <div

@@ -37,7 +37,7 @@ export default function RealTimeStream() {
     const timestamp = new Date().toLocaleTimeString();
     const id = ++logIdRef.current;
 
-    const newLog: LogEntry = { timestamp, type, message, data, level };
+    const newLog: LogEntry = { id, timestamp, type, message, data, level };
 
     setLogs(prev => {
       const filtered = filterLevel === 'all' ? prev : prev.filter(log => log.level === filterLevel);

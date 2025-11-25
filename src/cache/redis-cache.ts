@@ -18,11 +18,12 @@ export class RedisCache implements ICacheAdapter {
 
     this.client = createClient({
       url: redisUrl,
-      retry_delay_on_failover: 100,
-      max_retries_per_request: 3,
       socket: {
         connectTimeout: 5000,
-        lazyConnect: false
+        reconnectStrategy: (retries: number) => {
+          if (retries > 3) return new Error('Max retries reached');
+          return Math.min(retries * 100, 3000);
+        }
       }
     });
 
@@ -121,7 +122,7 @@ export class RedisCache implements ICacheAdapter {
       }
 
       return {
-        value,
+        value: value as string,
         ttl: remainingTTL * 1000, // Convert to ms
         isStale,
       };
@@ -150,7 +151,7 @@ export class RedisCache implements ICacheAdapter {
         console.log(`❌ Cache MISS: ${key}`);
         this.stats.misses++;
       }
-      return value || undefined;
+      return (value as string | null) ?? undefined;
     } catch (error) {
       console.error(`❌ Redis GET error for ${key}:`, (error as Error).message);
       this.stats.misses++;
@@ -259,7 +260,7 @@ export class RedisCache implements ICacheAdapter {
     }
 
     try {
-      await this.client.flushdb();
+      await this.client.flushDb();
       console.log('🗑️  Cache flushed');
     } catch (error) {
       console.error('❌ Redis FLUSH error:', (error as Error).message);
@@ -292,7 +293,7 @@ export class RedisCache implements ICacheAdapter {
     }
 
     try {
-      const dbSize = await this.client.dbsize();
+      const dbSize = await this.client.dbSize();
       const info = await this.client.info('stats');
 
       // Parse Redis INFO stats
@@ -367,7 +368,7 @@ export class RedisCache implements ICacheAdapter {
 
           return {
             url: key,
-            size: value ? value.length : 0,
+            size: value ? (value as string).length : 0,
             ttl: ttl > 0 ? ttl : 0,
           };
         })

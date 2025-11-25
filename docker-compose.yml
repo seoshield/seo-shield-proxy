@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Redis - Persistent cache with proper configuration
   redis:
@@ -36,8 +34,6 @@ services:
       - mongodb-data:/data/db
       - mongodb-config:/data/configdb
       - ./docker/mongo/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
-      - ./docker/mongo/mongod.conf:/etc/mongod.conf:ro
-    command: mongod --config /etc/mongod.conf
     networks:
       - seo-shield-network
     healthcheck:

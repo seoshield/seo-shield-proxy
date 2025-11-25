@@ -2,7 +2,7 @@
  * Ultra-Clean SEO Proxy Server - Port 8080
  * Pure proxy only - no admin routes, no API endpoints
  * All admin functions are handled by separate services:
- * - Port 8082: API server (/shieldapi/*)
+ * - Port 8190: API server (/shieldapi/*)
  * - Port 3001: Admin dashboard
  */
 
@@ -28,13 +28,14 @@ async function sendTrafficEvent(trafficData: any) {
     const mongoStorage = databaseManager.getMongoStorage();
     if (mongoStorage) {
       await mongoStorage.storeTrafficMetric({
-        timestamp: trafficData.timestamp || Date.now(),
+        timestamp: trafficData.timestamp || new Date(),
         method: trafficData.method || 'GET',
         path: trafficData.path || '/',
         ip: trafficData.ip || 'unknown',
         userAgent: trafficData.userAgent || '',
         referer: trafficData.headers?.referer || '',
         isBot: trafficData.isBot || false,
+        action: trafficData.action || 'proxy',
         responseTime: 0, // Not measured at this level
         statusCode: 200,
         responseSize: 0,
@@ -134,7 +135,11 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   }
 
   const isBotRequest = botDetection.isBot;
-  const isRenderPreview = req.query.render === 'preview' || req.query.render === 'true';
+
+  // Support both ?render and ?_render query parameters
+  const renderParam = (req.query.render || req.query._render) as string | undefined;
+  const isRenderPreview = renderParam === 'preview' || renderParam === 'true';
+  const isRenderDebug = renderParam === 'debug';
 
   console.log(`📥 ${req.method} ${requestPath} - UA: ${userAgent.length > 100 ? `${userAgent.substring(0, 97)}...` : userAgent}`);
   console.log(`🤌 Is Bot: ${isBotRequest} (${botDetection.botType}, confidence: ${(botDetection.confidence * 100).toFixed(1)}%)`);
@@ -183,7 +188,53 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     return next();
   }
 
-  // 3. Bot requests and render previews - always SSR
+  // 3a. Debug mode - return JSON with detailed metrics
+  if (isRenderDebug) {
+    console.log(`🔍 Debug mode requested for: ${requestPath}`);
+    const debugStartTime = Date.now();
+
+    try {
+      const cacheInstance = await getCache();
+      const cached = cacheInstance.get(fullUrl);
+      const cacheDecision = cacheRules.getCacheDecision(req.originalUrl);
+
+      const renderResult = await browserManager.render(fullUrl);
+      const debugDuration = Date.now() - debugStartTime;
+
+      return res.json({
+        success: true,
+        debug: {
+          url: fullUrl,
+          path: requestPath,
+          renderTime: `${debugDuration}ms`,
+          htmlLength: renderResult.html?.length || 0,
+          statusCode: renderResult.statusCode || 200,
+          wasCached: !!cached,
+          botDetection: {
+            isBot: botDetection.isBot,
+            botType: botDetection.botType,
+            confidence: `${(botDetection.confidence * 100).toFixed(1)}%`,
+            rulesMatched: botDetection.rulesMatched,
+            action: botDetection.action
+          },
+          cacheDecision: cacheDecision,
+          timestamp: new Date().toISOString()
+        },
+        html: renderResult.html
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        debug: {
+          url: fullUrl,
+          error: (error as Error).message,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }
+
+  // 3b. Bot requests and render previews - always SSR
   if (isBotRequest || isRenderPreview) {
     console.log(`🤖 Bot detected or render preview - Forcing SSR: ${isBotRequest || isRenderPreview}`);
     // Proxy-only mode - no metrics collection
@@ -219,81 +270,54 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  // 4. Human requests - check cache first
+  // 4. Human requests - check cache first (with Stale-While-Revalidate)
   if (!isBotRequest) {
-    const isStaleCache = false; // Simplified for proxy-only mode
-    const cached = (await getCache()).get(fullUrl);
+    const cacheInstance = await getCache();
+    const cachedEntry = cacheInstance.getWithTTL ? cacheInstance.getWithTTL(fullUrl) : null;
+    const cached = cachedEntry?.value || cacheInstance.get(fullUrl);
     const isCacheable = cacheRules.shouldCacheUrl(req.originalUrl).shouldCache;
 
-    if (cached && isCacheable && !isStaleCache) {
-      console.log(`🎯 Cache HIT: ${requestPath} (${JSON.parse(cached as any).renderTime}ms render time)`);
-      // Proxy-only mode - no metrics collection
-      return res.status(200).send(JSON.parse(cached as any).content);
-    }
-
-    if (cached && isCacheable && isStaleCache) {
-      console.log(`🔄 Cache STALE: ${requestPath} - Serving cached while re-rendering: ${JSON.parse(cached as any).renderTime}ms`);
-      // Proxy-only mode - no metrics collection
-
+    if (cached && isCacheable) {
       try {
-        const browser = await browserManager.getBrowser();
-        const page = await browser.newPage();
+        const cacheData = JSON.parse(cached as string);
+        const cacheAge = Date.now() - (cacheData.renderTime || 0);
+        const cacheTTL = config.CACHE_TTL * 1000; // Convert to ms
+        const staleThreshold = cacheTTL * 0.8; // Consider stale at 80% of TTL
+        const isStale = cachedEntry?.isStale || cacheAge > staleThreshold;
 
-        console.log(`🔄 Re-rendering stale cache: ${fullUrl}`);
-        const html = await page.evaluate(async (url: string, waitSelector: string) => {
-          const start = Date.now();
-          let attempts = 0;
-          const maxAttempts = 30;
-
-          while (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-            let ready = false;
-            try {
-              const scripts = Array.from(document.querySelectorAll('script'));
-              for (const script of scripts) {
-                if (!script.src && script.textContent) {
-                  try {
-                    const markers = ['__INITIAL_STATE__', '__NUXT__', '__REDUX__', 'window.__STATE__', 'window.data'];
-                    for (const marker of markers) {
-                      if (script.textContent.includes(marker)) {
-                        ready = true;
-                        break;
-                      }
-                    }
-                    if (ready) break;
-                  } catch (e) {
-                    // Ignore script errors
-                  }
-                }
-              }
-
-              const content = document.querySelector(waitSelector) || document.querySelector('main') || document.querySelector('#app') || document.querySelector('.app') || document.body;
-              const text = content ? content.textContent || '' : '';
-              if (text.length > 100) ready = true;
-
-              if (ready || Date.now() - start > 5000) break;
-              attempts++;
-            } catch (e) {
-              console.warn('Warning: Error checking render readiness:', e);
-              break;
-            }
-          }
-
-          return document.documentElement.outerHTML;
-        }, fullUrl, 'body');
-
-        await page.close();
-
-        if (html) {
-          (await getCache()).set(fullUrl, JSON.stringify({ content: html, renderTime: Date.now() }));
-          console.log(`✅ Stale cache re-rendered: ${requestPath}`);
+        if (!isStale) {
+          // Fresh cache - serve directly
+          console.log(`🎯 Cache HIT (fresh): ${requestPath} - Age: ${Math.round(cacheAge / 1000)}s`);
+          return res.status(200).send(cacheData.content);
         }
-      } catch (error) {
-        console.error(`❌ Stale cache re-render failed: ${requestPath}`, error);
-      }
 
-      return res.status(200).send(JSON.parse(cached as any).content);
+        // Stale cache - serve immediately, revalidate in background
+        console.log(`🔄 Cache STALE: ${requestPath} - Age: ${Math.round(cacheAge / 1000)}s - Serving stale, revalidating...`);
+        res.status(200).send(cacheData.content);
+
+        // Background revalidation (fire and forget)
+        setImmediate(async () => {
+          try {
+            console.log(`🔄 Background re-render starting: ${fullUrl}`);
+            const renderResult = await browserManager.render(fullUrl);
+
+            if (renderResult && renderResult.html) {
+              cacheInstance.set(fullUrl, JSON.stringify({
+                content: renderResult.html,
+                renderTime: Date.now(),
+                statusCode: renderResult.statusCode || 200
+              }));
+              console.log(`✅ Background re-render completed: ${requestPath}`);
+            }
+          } catch (error) {
+            console.error(`❌ Background re-render failed: ${requestPath}`, error);
+          }
+        });
+
+        return; // Response already sent
+      } catch (parseError) {
+        console.warn(`⚠️ Cache parse error for ${requestPath}, serving fresh`);
+      }
     }
   }
 

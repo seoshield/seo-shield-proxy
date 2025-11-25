@@ -1,4 +1,7 @@
-import { MongoDBStorage } from '../storage/mongodb-storage';
+import { MongoDBStorage, MongoStorage } from '../storage/mongodb-storage';
+
+// Type alias for either storage implementation
+type StorageAdapter = MongoDBStorage | MongoStorage;
 
 export interface BotRule {
   id: string;
@@ -28,7 +31,7 @@ export interface BotDetectionResult {
 export interface IPReputation {
   ip: string;
   reputation: 'clean' | 'suspicious' | 'malicious' | 'unknown';
-  category: 'search_engine' | 'social' | 'monitoring' | 'malicious' | 'cloud' | 'unknown';
+  category: 'search_engine' | 'social' | 'monitoring' | 'malicious' | 'cloud' | 'private' | 'hosting' | 'unknown';
   lastSeen: Date;
   requestCount: number;
   blockedCount: number;
@@ -36,13 +39,13 @@ export interface IPReputation {
 }
 
 export class AdvancedBotDetector {
-  private mongoStorage: MongoDBStorage;
+  private mongoStorage: StorageAdapter;
   private botRules: BotRule[] = [];
   private ipReputationCache: Map<string, IPReputation> = new Map();
   private lastRulesUpdate: Date = new Date(0);
   private ipReputationTTL: number = 3600000; // 1 hour
 
-  constructor(mongoStorage: MongoDBStorage) {
+  constructor(mongoStorage: StorageAdapter) {
     this.mongoStorage = mongoStorage;
     this.loadBotRules();
   }
@@ -459,16 +462,18 @@ export class AdvancedBotDetector {
     return baseConfidence.priority;
   }
 
-  private shouldUpdateAddress(currentAction: string, newAction: string, priority: number): boolean {
-    const actionPriority = {
+  private shouldUpdateAction(currentAction: string, newAction: string, priority: number): boolean {
+    const actionPriority: Record<string, number> = {
       'block': 100,
       'render': 90,
       'priority': 50,
       'allow': 10
     };
 
-    return actionPriority[newAction as keyof typeof actionPriority] >
-           actionPriority[currentAction as keyof typeof actionPriority];
+    const currentPriority = actionPriority[currentAction] ?? 0;
+    const newPriority = actionPriority[newAction] ?? 0;
+
+    return newPriority > currentPriority;
   }
 
   private async getIPReputation(ip: string): Promise<IPReputation> {
@@ -622,7 +627,7 @@ export class AdvancedBotDetector {
       await this.mongoStorage.logAudit({
         action: 'bot_detection',
         category: 'security',
-        level: result.isBot ? 'info' : 'debug',
+        level: 'info',
         message: `Bot detection: ${result.isBot ? 'Bot' : 'Human'} (${result.botType}, ${result.confidence}% confidence)`,
         data: {
           detectionResult: result,

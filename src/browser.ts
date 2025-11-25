@@ -5,6 +5,7 @@ import forensicsCollector from './admin/forensics-collector';
 import blockingManager from './admin/blocking-manager';
 import { ContentHealthCheckManager, CriticalSelector } from './admin/content-health-check';
 import { VirtualScrollManager } from './admin/virtual-scroll-manager';
+import { ssrEventsStore, SSREvent } from './admin/ssr-events-store';
 
 /**
  * Render result containing HTML and optional HTTP status code
@@ -542,33 +543,39 @@ class BrowserManager {
         }
       }
 
-      // Content Health Check temporarily disabled
-      /*
+      // Content Health Check - validates SEO critical elements
       if (this.contentHealthCheck) {
         try {
           const healthResult = await this.contentHealthCheck.checkPageHealth(page, url);
 
-          // If health check fails and configured to fail on missing critical elements
-          if (!healthResult.passed && this.contentHealthCheck.config?.failOnMissingCritical) {
-            const hasErrors = healthResult.issues.some(issue => issue.type === 'error');
-            if (hasErrors) {
-              console.warn(`⚠️  Content Health Check failed for ${url} - returning 503 Service Unavailable`);
-              return {
-                html: '<!DOCTYPE html><html><head><title>Service Unavailable</title></head><body><h1>503 Service Unavailable</h1><p>Content validation failed. Please try again later.</p></body></html>',
-                statusCode: 503
-              };
-            }
-          }
+          // Emit health check event for monitoring
+          this.emitSSREvent('health_check', {
+            url,
+            score: healthResult.score,
+            passed: healthResult.passed,
+            issues: healthResult.issues,
+            timestamp: Date.now()
+          });
 
           // Log health score for monitoring
           console.log(`🏥 Content Health Score: ${healthResult.score}/100 for ${url}`);
 
+          // If health check fails and configured to fail on missing critical elements
+          if (!healthResult.passed && this.contentHealthCheck.config?.failOnMissingCritical) {
+            const hasErrors = healthResult.issues.some((issue: any) => issue.type === 'error');
+            if (hasErrors) {
+              console.warn(`⚠️  Content Health Check failed for ${url} - returning 503 Service Unavailable`);
+              return {
+                html: '<!DOCTYPE html><html><head><title>Service Unavailable</title><meta name="robots" content="noindex"></head><body><h1>503 Service Unavailable</h1><p>Content validation failed. Please try again later.</p></body></html>',
+                statusCode: 503
+              };
+            }
+          }
         } catch (healthError) {
           console.warn(`⚠️  Content Health Check error for ${url}:`, (healthError as Error).message);
           // Don't fail the entire render if health check has issues
         }
       }
-      */
 
       return { html, statusCode };
     } catch (error) {
@@ -600,12 +607,6 @@ class BrowserManager {
     const renderStartTime = Date.now();
     const renderId = `render_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Use direct browser for simpler implementation
-    const browser = await this.getBrowser();
-    if (!browser) {
-      throw new Error('Browser not available');
-    }
-
     this.metrics.queued++;
     console.log(`📋 Queue: ${this.metrics.queued} queued, ${this.metrics.processing}/${this.metrics.maxConcurrency} processing`);
 
@@ -619,14 +620,28 @@ class BrowserManager {
     });
 
     try {
-      this.metrics.processing++;
-      const page = await browser.newPage();
-      const result = await this.renderPage(page, url);
-      await page.close();
-      this.metrics.processing--;
-      this.metrics.completed++;
+      // Try cluster first for better concurrency control
+      let result: RenderResult;
+      try {
+        const cluster = await this.getCluster();
+        result = await cluster.execute(url);
+      } catch (clusterError) {
+        // Fallback to direct browser if cluster fails
+        console.warn('⚠️ Cluster unavailable, using direct browser:', (clusterError as Error).message);
+        const browser = await this.getBrowser();
+        if (!browser) {
+          throw new Error('Browser not available');
+        }
+        this.metrics.processing++;
+        const page = await browser.newPage();
+        result = await this.renderPage(page, url);
+        await page.close();
+        this.metrics.processing--;
+        this.metrics.completed++;
+      }
 
       const renderDuration = Date.now() - renderStartTime;
+      this.metrics.queued = Math.max(0, this.metrics.queued - 1);
 
       // Emit render success event to admin dashboard
       this.emitSSREvent('render_complete', {
@@ -643,7 +658,6 @@ class BrowserManager {
       return result;
     } catch (error) {
       this.metrics.queued = Math.max(0, this.metrics.queued - 1);
-      this.metrics.processing = Math.max(0, this.metrics.processing - 1);
       this.metrics.errors++;
 
       const renderDuration = Date.now() - renderStartTime;
@@ -665,39 +679,32 @@ class BrowserManager {
 
   private emitSSREvent(event: string, data: any) {
     try {
-      // Send to admin dashboard via WebSocket if available
-      const fs = require('fs');
-      const path = require('path');
+      // Create SSR event object
+      const ssrEvent: SSREvent = {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        event: event as SSREvent['event'],
+        url: data.url || '',
+        timestamp: data.timestamp || Date.now(),
+        duration: data.duration,
+        success: data.success,
+        htmlLength: data.htmlLength,
+        statusCode: data.statusCode,
+        error: data.error,
+        queueSize: data.queueSize,
+        processing: data.processing,
+        renderId: data.renderId,
+        score: data.score,
+        passed: data.passed,
+        issues: data.issues
+      };
 
-      // Create temp file with event data for WebSocket handler to pick up
-      const eventFile = path.join(process.cwd(), '.ssr-events.json');
-      let events = [];
+      // Store in memory (no file I/O - much faster)
+      ssrEventsStore.addEvent(ssrEvent);
 
-      try {
-        if (fs.existsSync(eventFile)) {
-          events = JSON.parse(fs.readFileSync(eventFile, 'utf8'));
-        }
-      } catch (e) {
-        // File doesn't exist or is invalid
-      }
-
-      events.push({
-        event,
-        data,
-        id: Date.now() + '_' + Math.random().toString(36).substr(2, 5)
-      });
-
-      // Keep only last 50 events
-      if (events.length > 50) {
-        events = events.slice(-50);
-      }
-
-      fs.writeFileSync(eventFile, JSON.stringify(events, null, 2));
-
-      // Also emit via direct WebSocket if available
-      global.io?.emit('ssr_event', { event, data });
+      // Broadcast via WebSocket for real-time updates
+      (global as any).io?.emit('ssr_event', ssrEvent);
     } catch (e) {
-      // Silently fail WebSocket errors
+      // Silently fail - don't let event logging break rendering
     }
   }
 

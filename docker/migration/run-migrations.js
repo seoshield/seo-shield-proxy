@@ -10,7 +10,8 @@ const { MongoClient } = require('mongodb');
 // Load configuration
 require('dotenv').config();
 
-const MONGODB_URL = process.env.MONGODB_URL || 'mongodb://admin:admin123@mongodb:27017/seo_shield_proxy?authSource=admin';
+// Use localhost for local development, mongodb for Docker
+const MONGODB_URL = process.env.MONGODB_URL || 'mongodb://admin:admin123@localhost:27017/seo_shield_proxy?authSource=admin';
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME || 'seo_shield_proxy';
 
 async function runMigrations() {
@@ -46,8 +47,23 @@ async function runMigrations() {
 }
 
 async function createCollections(db) {
+  // Helper function to safely create collection
+  async function safeCreateCollection(name, options) {
+    try {
+      await db.createCollection(name, options);
+      console.log(`✅ ${name} collection created`);
+    } catch (error) {
+      if (error.code === 48) {
+        // Collection already exists
+        console.log(`⏭️  ${name} collection already exists, skipping creation`);
+      } else {
+        throw error;
+      }
+    }
+  }
+
   // Traffic metrics collection
-  await db.createCollection('traffic_metrics', {
+  await safeCreateCollection('traffic_metrics', {
     validator: {
       $jsonSchema: {
         bsonType: "object",
@@ -71,22 +87,23 @@ async function createCollections(db) {
     }
   });
 
-  // Create indexes for traffic metrics
-  await db.collection('traffic_metrics').createIndex({ "timestamp": -1 });
-  await db.collection('traffic_metrics').createIndex({ "path": 1, "timestamp": -1 });
-  await db.collection('traffic_metrics').createIndex({ "ip": 1, "timestamp": -1 });
-  await db.collection('traffic_metrics').createIndex({ "isBot": 1, "timestamp": -1 });
-
-  // TTL index for traffic data (30 days)
-  await db.collection('traffic_metrics').createIndex(
-    { "timestamp": 1 },
-    { expireAfterSeconds: 2592000 }
-  );
-
-  console.log('✅ Traffic metrics collection created');
+  // Create indexes for traffic metrics (safe to run even if they exist)
+  try {
+    await db.collection('traffic_metrics').createIndex({ "timestamp": -1 });
+    await db.collection('traffic_metrics').createIndex({ "path": 1, "timestamp": -1 });
+    await db.collection('traffic_metrics').createIndex({ "ip": 1, "timestamp": -1 });
+    await db.collection('traffic_metrics').createIndex({ "isBot": 1, "timestamp": -1 });
+    await db.collection('traffic_metrics').createIndex(
+      { "timestamp": 1 },
+      { expireAfterSeconds: 2592000 }
+    );
+    console.log('  ✅ Traffic metrics indexes created');
+  } catch (e) {
+    console.log('  ⏭️  Traffic metrics indexes already exist');
+  }
 
   // Configurations collection
-  await db.createCollection('configurations', {
+  await safeCreateCollection('configurations', {
     validator: {
       $jsonSchema: {
         bsonType: "object",
@@ -105,13 +122,16 @@ async function createCollections(db) {
     }
   });
 
-  await db.collection('configurations').createIndex({ "key": 1 }, { unique: true });
-  await db.collection('configurations').createIndex({ "createdAt": -1 });
-
-  console.log('✅ Configurations collection created');
+  try {
+    await db.collection('configurations').createIndex({ "key": 1 }, { unique: true });
+    await db.collection('configurations').createIndex({ "createdAt": -1 });
+    console.log('  ✅ Configurations indexes created');
+  } catch (e) {
+    console.log('  ⏭️  Configurations indexes already exist');
+  }
 
   // Audit logs collection
-  await db.createCollection('audit_logs', {
+  await safeCreateCollection('audit_logs', {
     validator: {
       $jsonSchema: {
         bsonType: "object",
@@ -131,20 +151,21 @@ async function createCollections(db) {
     }
   });
 
-  await db.collection('audit_logs').createIndex({ "timestamp": -1 });
-  await db.collection('audit_logs').createIndex({ "action": 1, "timestamp": -1 });
-  await db.collection('audit_logs').createIndex({ "userId": 1, "timestamp": -1 });
-
-  // TTL index for audit logs (90 days)
-  await db.collection('audit_logs').createIndex(
-    { "timestamp": 1 },
-    { expireAfterSeconds: 7776000 }
-  );
-
-  console.log('✅ Audit logs collection created');
+  try {
+    await db.collection('audit_logs').createIndex({ "timestamp": -1 });
+    await db.collection('audit_logs').createIndex({ "action": 1, "timestamp": -1 });
+    await db.collection('audit_logs').createIndex({ "userId": 1, "timestamp": -1 });
+    await db.collection('audit_logs').createIndex(
+      { "timestamp": 1 },
+      { expireAfterSeconds: 7776000 }
+    );
+    console.log('  ✅ Audit logs indexes created');
+  } catch (e) {
+    console.log('  ⏭️  Audit logs indexes already exist');
+  }
 
   // Error logs collection
-  await db.createCollection('error_logs', {
+  await safeCreateCollection('error_logs', {
     validator: {
       $jsonSchema: {
         bsonType: "object",
@@ -164,20 +185,21 @@ async function createCollections(db) {
     }
   });
 
-  await db.collection('error_logs').createIndex({ "timestamp": -1 });
-  await db.collection('error_logs').createIndex({ "severity": 1, "timestamp": -1 });
-  await db.collection('error_logs').createIndex({ "category": 1, "timestamp": -1 });
-
-  // TTL index for error logs (30 days)
-  await db.collection('error_logs').createIndex(
-    { "timestamp": 1 },
-    { expireAfterSeconds: 2592000 }
-  );
-
-  console.log('✅ Error logs collection created');
+  try {
+    await db.collection('error_logs').createIndex({ "timestamp": -1 });
+    await db.collection('error_logs').createIndex({ "severity": 1, "timestamp": -1 });
+    await db.collection('error_logs').createIndex({ "category": 1, "timestamp": -1 });
+    await db.collection('error_logs').createIndex(
+      { "timestamp": 1 },
+      { expireAfterSeconds: 2592000 }
+    );
+    console.log('  ✅ Error logs indexes created');
+  } catch (e) {
+    console.log('  ⏭️  Error logs indexes already exist');
+  }
 
   // Bot rules collection
-  await db.createCollection('bot_rules', {
+  await safeCreateCollection('bot_rules', {
     validator: {
       $jsonSchema: {
         bsonType: "object",
@@ -201,13 +223,16 @@ async function createCollections(db) {
     }
   });
 
-  await db.collection('bot_rules').createIndex({ "id": 1 }, { unique: true });
-  await db.collection('bot_rules').createIndex({ "enabled": 1, "priority": -1 });
-
-  console.log('✅ Bot rules collection created');
+  try {
+    await db.collection('bot_rules').createIndex({ "id": 1 }, { unique: true });
+    await db.collection('bot_rules').createIndex({ "enabled": 1, "priority": -1 });
+    console.log('  ✅ Bot rules indexes created');
+  } catch (e) {
+    console.log('  ⏭️  Bot rules indexes already exist');
+  }
 
   // IP reputation collection
-  await db.createCollection('ip_reputation', {
+  await safeCreateCollection('ip_reputation', {
     validator: {
       $jsonSchema: {
         bsonType: "object",
@@ -226,16 +251,19 @@ async function createCollections(db) {
     }
   });
 
-  await db.collection('ip_reputation').createIndex({ "ip": 1 }, { unique: true });
-  await db.collection('ip_reputation').createIndex({ "reputation": 1, "lastSeen": -1 });
+  try {
+    await db.collection('ip_reputation').createIndex({ "ip": 1 }, { unique: true });
+    await db.collection('ip_reputation').createIndex({ "reputation": 1, "lastSeen": -1 });
+    await db.collection('ip_reputation').createIndex(
+      { "lastSeen": 1 },
+      { expireAfterSeconds: 604800 }
+    );
+    console.log('  ✅ IP reputation indexes created');
+  } catch (e) {
+    console.log('  ⏭️  IP reputation indexes already exist');
+  }
 
-  // TTL index for IP reputation (7 days)
-  await db.collection('ip_reputation').createIndex(
-    { "lastSeen": 1 },
-    { expireAfterSeconds: 604800 }
-  );
-
-  console.log('✅ IP reputation collection created');
+  console.log('✅ All collections and indexes configured');
 }
 
 async function seedInitialData(db) {

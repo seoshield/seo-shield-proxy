@@ -5,6 +5,7 @@
  */
 
 import express, { Router, Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import metricsCollector from './metrics-collector';
 import configManager from './config-manager';
 import cache from '../cache';
@@ -18,8 +19,14 @@ import uaSimulator from './ua-simulator';
 import { getSEOProtocolsService } from './seo-protocols-service';
 import { broadcastTrafficEvent } from './websocket';
 import { databaseManager } from '../database/database-manager';
+import { ssrEventsStore } from './ssr-events-store';
 
 const router: Router = express.Router();
+
+// JWT Configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'seo-shield-jwt-secret-change-in-production';
+const JWT_EXPIRY = '24h';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
 /**
  * API: Login endpoint for form-based authentication
@@ -28,11 +35,36 @@ router.post('/auth/login', express.json(), (req: Request, res: Response) => {
   try {
     const { password } = req.body;
 
-    // For now, accept any password for testing
+    // Validate password is provided
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password is required'
+      });
+    }
+
+    // Check password against config
+    if (password !== ADMIN_PASSWORD) {
+      console.log('❌ Login failed: Invalid password attempt');
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid password'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { role: 'admin', timestamp: Date.now() },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRY }
+    );
+
+    console.log('✅ Login successful');
     return res.json({
       success: true,
-      message: 'Login successful (temporarily disabled)',
-      token: 'temp-auth-token'
+      message: 'Login successful',
+      token,
+      expiresIn: JWT_EXPIRY
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -45,13 +77,15 @@ router.post('/auth/login', express.json(), (req: Request, res: Response) => {
 
 /**
  * API: Check authentication status
+ * Supports both JWT Bearer tokens and Basic auth
  */
 router.get('/auth/status', (req: Request, res: Response) => {
   try {
     const config = configManager.getConfig();
     const authHeader = req.headers.authorization;
 
-    if (!config?.adminAuth?.enabled) {
+    // Auth disabled in config
+    if (config?.adminAuth?.enabled === false) {
       return res.json({
         success: true,
         authenticated: true,
@@ -59,7 +93,8 @@ router.get('/auth/status', (req: Request, res: Response) => {
       });
     }
 
-    if (!authHeader || !authHeader.startsWith('Basic ')) {
+    // No auth header
+    if (!authHeader) {
       return res.json({
         success: true,
         authenticated: false,
@@ -67,32 +102,77 @@ router.get('/auth/status', (req: Request, res: Response) => {
       });
     }
 
-    try {
-      const base64Credentials = authHeader.slice(6);
-      const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
-      const [username, password] = credentials.split(':', 2);
-
-      if (username === config.adminAuth.username && password === config.adminAuth.password) {
+    // JWT Bearer token check
+    if (authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
         return res.json({
           success: true,
           authenticated: true,
-          username: username,
-          message: 'Authenticated'
+          role: decoded.role || 'admin',
+          message: 'Authenticated via JWT'
         });
-      } else {
+      } catch (error) {
+        const errorMessage = error instanceof jwt.TokenExpiredError
+          ? 'Token expired'
+          : 'Invalid token';
+        return res.json({
+          success: true,
+          authenticated: false,
+          message: errorMessage
+        });
+      }
+    }
+
+    // Basic auth check
+    if (authHeader.startsWith('Basic ')) {
+      try {
+        const base64Credentials = authHeader.slice(6);
+        const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+        const [username, password] = credentials.split(':', 2);
+
+        // Check against config
+        if (config?.adminAuth?.username && config?.adminAuth?.password) {
+          if (username === config.adminAuth.username && password === config.adminAuth.password) {
+            return res.json({
+              success: true,
+              authenticated: true,
+              username: username,
+              message: 'Authenticated via Basic auth'
+            });
+          }
+        }
+
+        // Check against ADMIN_PASSWORD
+        if (password === ADMIN_PASSWORD) {
+          return res.json({
+            success: true,
+            authenticated: true,
+            username: username || 'admin',
+            message: 'Authenticated via Basic auth'
+          });
+        }
+
         return res.json({
           success: true,
           authenticated: false,
           message: 'Invalid credentials'
         });
+      } catch (decodeError) {
+        return res.json({
+          success: true,
+          authenticated: false,
+          message: 'Invalid authentication format'
+        });
       }
-    } catch (decodeError) {
-      return res.json({
-        success: true,
-        authenticated: false,
-        message: 'Invalid authentication format'
-      });
     }
+
+    return res.json({
+      success: true,
+      authenticated: false,
+      message: 'Unsupported authentication method'
+    });
   } catch (error) {
     console.error('Auth status error:', error);
     return res.status(500).json({
@@ -103,11 +183,71 @@ router.get('/auth/status', (req: Request, res: Response) => {
 });
 
 /**
- * Basic Authentication Middleware (disabled for now)
+ * JWT Authentication Middleware
+ * Validates Bearer token or allows bypass when auth is disabled
  */
 function authenticate(req: Request, res: Response, next: NextFunction): void | Response {
-  // Temporary: skip authentication to allow admin dashboard to work
-  return next();
+  const config = configManager.getConfig();
+
+  // Check if auth is disabled in config
+  if (config?.adminAuth?.enabled === false) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+
+  // No auth header provided
+  if (!authHeader) {
+    return res.status(401).json({
+      success: false,
+      error: 'No authorization header provided'
+    });
+  }
+
+  // Bearer token authentication (JWT)
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      (req as any).user = decoded;
+      return next();
+    } catch (error) {
+      const errorMessage = error instanceof jwt.TokenExpiredError
+        ? 'Token expired'
+        : 'Invalid token';
+      return res.status(401).json({
+        success: false,
+        error: errorMessage
+      });
+    }
+  }
+
+  // Basic auth fallback for backward compatibility
+  if (authHeader.startsWith('Basic ')) {
+    try {
+      const base64Credentials = authHeader.slice(6);
+      const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
+      const [username, password] = credentials.split(':', 2);
+
+      if (config?.adminAuth?.username && config?.adminAuth?.password) {
+        if (username === config.adminAuth.username && password === config.adminAuth.password) {
+          return next();
+        }
+      }
+
+      // Fallback to ADMIN_PASSWORD check
+      if (password === ADMIN_PASSWORD) {
+        return next();
+      }
+    } catch (decodeError) {
+      // Invalid format, fall through to error
+    }
+  }
+
+  return res.status(401).json({
+    success: false,
+    error: 'Invalid credentials'
+  });
 }
 
 /**
@@ -224,22 +364,45 @@ router.get('/cache/analytics', authenticate, (_req: Request, res: Response) => {
     const cacheData = cache.getAllEntries();
     const cacheStats = cache.getStats();
 
-    // Calculate analytics with simplified data structure
+    // Calculate analytics with real data from cache entries
     const entries = cacheData.map((entry) => {
       const now = Date.now();
-      const age = entry.ttl > 0 ? Math.min(entry.ttl, 3600000) : 3600000; // Use ttl as age proxy
       const remaining = Math.max(0, entry.ttl);
+
+      // Try to parse metadata from cached content
+      let metadata = {
+        renderTime: 0,
+        statusCode: 200,
+        timestamp: now - (entry.ttl > 0 ? entry.ttl : 3600000)
+      };
+
+      try {
+        // Cache stores JSON with { content, renderTime, statusCode }
+        const cachedValue = cache.get(entry.url);
+        if (cachedValue) {
+          const parsed = JSON.parse(cachedValue);
+          metadata.renderTime = parsed.renderTime || 0;
+          metadata.statusCode = parsed.statusCode || 200;
+          // renderTime field stores the timestamp when it was cached
+          if (parsed.renderTime && parsed.renderTime > 1000000000000) {
+            metadata.timestamp = parsed.renderTime;
+          }
+        }
+      } catch (e) {
+        // Parsing failed, use defaults
+      }
+
+      const cacheAge = now - metadata.timestamp;
 
       return {
         url: entry.url,
-        timestamp: now - age, // Approximate timestamp
+        timestamp: metadata.timestamp,
         size: entry.size,
         ttl: entry.ttl,
-        accessCount: 1, // Default access count
-        lastAccessed: now - Math.random() * age, // Random last access for demo
-        renderTime: Math.floor(Math.random() * 2000), // Mock render time
-        statusCode: 200,
-        userAgent: 'Mozilla/5.0 (compatible; SEO Shield)',
+        cacheAge: Math.round(cacheAge / 1000), // seconds
+        renderTime: metadata.renderTime > 1000000000000 ? 0 : metadata.renderTime, // If it's a timestamp, show 0
+        statusCode: metadata.statusCode,
+        userAgent: 'SEO Shield Proxy',
         cacheKey: entry.url,
         isStale: remaining <= 0,
         cacheStatus: remaining > 0 ? 'HIT' : 'STALE'
@@ -488,7 +651,7 @@ router.post('/config', authenticate, express.json(), async (req: Request, res: R
  * API: Add cache pattern
  */
 router.post(
-  '/api/config/cache-pattern',
+  '/config/cache-pattern',
   authenticate,
   express.json(),
   async (req: Request, res: Response) => {
@@ -522,7 +685,7 @@ router.post(
  * API: Remove cache pattern
  */
 router.delete(
-  '/api/config/cache-pattern',
+  '/config/cache-pattern',
   authenticate,
   express.json(),
   async (req: Request, res: Response) => {
@@ -1074,7 +1237,7 @@ router.post('/hotfix/rules', authenticate, express.json(), async (req: Request, 
 /**
  * API: Update hotfix rule
  */
-router.put('/api/hotfix/rules/:id', authenticate, express.json(), async (req: Request, res: Response) => {
+router.put('/hotfix/rules/:id', authenticate, express.json(), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -1428,7 +1591,7 @@ router.post('/blocking/test', authenticate, express.json(), async (req: Request,
 /**
  * API: Update blocking rule
  */
-router.put('/api/blocking/rules/:id', authenticate, express.json(), async (req: Request, res: Response) => {
+router.put('/blocking/rules/:id', authenticate, express.json(), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const updates = req.body;
@@ -1640,26 +1803,6 @@ router.get('/simulate/active', authenticate, (_req: Request, res: Response) => {
 });
 
 /**
- * API: Get simulation history (alias for /simulate/history)
- */
-router.get('/simulate/history', authenticate, (req: Request, res: Response) => {
-  try {
-    const limit = parseInt(req.query['limit'] as string) || 20;
-    const history = uaSimulator.getSimulationHistory(limit);
-
-    res.json({
-      success: true,
-      data: history,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
-  }
-});
-
-/**
  * API: Get simulation stats
  */
 router.get('/simulate/stats', authenticate, (_req: Request, res: Response) => {
@@ -1745,51 +1888,17 @@ router.post('/simulate/:id/cancel', authenticate, async (req: Request, res: Resp
 });
 
 /**
- * API: Get SSR events
+ * API: Get SSR events (real data from SSR Events Store)
  */
-router.get('/ssr/events', authenticate, (_req: Request, res: Response) => {
+router.get('/ssr/events', authenticate, (req: Request, res: Response) => {
   try {
-    // Mock SSR events for now
-    const mockEvents = [
-      {
-        event: 'render_complete',
-        url: '/home',
-        timestamp: Date.now() - 5000,
-        duration: 1665,
-        success: true,
-        htmlLength: 3885,
-        userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        cacheStatus: 'HIT'
-      },
-      {
-        event: 'render_complete',
-        url: '/about',
-        timestamp: Date.now() - 3000,
-        duration: 915,
-        success: true,
-        htmlLength: 3884,
-        userAgent: 'Mozilla/5.0 (compatible; Bingbot/2.0; +http://www.bing.com/bingbot.htm)',
-        cacheStatus: 'HIT'
-      },
-      {
-        event: 'render_start',
-        url: '/contact',
-        timestamp: Date.now() - 1000,
-        userAgent: 'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
-        cacheStatus: 'MISS'
-      }
-    ];
-
-    const stats = {
-      activeRenders: 0,
-      totalRenders: mockEvents.filter(e => e.event === 'render_complete').length,
-      successRate: 100,
-      avgRenderTime: mockEvents.reduce((sum, e) => sum + (e.duration || 0), 0) / mockEvents.length
-    };
+    const limit = parseInt(req.query['limit'] as string) || 50;
+    const events = ssrEventsStore.getRecentEvents(limit);
+    const stats = ssrEventsStore.getStats();
 
     res.json({
       success: true,
-      events: mockEvents,
+      events,
       stats,
     });
   } catch (error) {
