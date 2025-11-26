@@ -1,5 +1,9 @@
 import { CacheFactory } from './cache/cache-factory';
 import { ICacheAdapter} from './cache/cache-interface';
+import { MemoryCache } from './cache/memory-cache';
+import { Logger } from './utils/logger';
+
+const logger = new Logger('Cache');
 
 // Re-export types for backward compatibility
 export type { CacheStats, CacheEntry } from './cache/cache-interface';
@@ -12,7 +16,7 @@ let cacheInstance: ICacheAdapter | null = null;
 let initPromise: Promise<ICacheAdapter> | null = null;
 
 /**
- * Initialize cache instance
+ * Initialize cache instance with fallback to memory cache
  */
 async function initCache(): Promise<ICacheAdapter> {
   if (cacheInstance) {
@@ -23,7 +27,15 @@ async function initCache(): Promise<ICacheAdapter> {
     return initPromise;
   }
 
-  initPromise = CacheFactory.createCache();
+  initPromise = (async () => {
+    try {
+      return await CacheFactory.createCache();
+    } catch (error) {
+      logger.error('Cache initialization failed, falling back to memory cache:', error);
+      return new MemoryCache();
+    }
+  })();
+
   cacheInstance = await initPromise;
   initPromise = null;
 
@@ -38,10 +50,12 @@ export async function getCache(): Promise<ICacheAdapter> {
   return initCache();
 }
 
-// Initialize cache immediately
+// Initialize cache immediately with graceful fallback
 initCache().catch((error) => {
-  console.error('❌ Failed to initialize cache:', error);
-  process.exit(1);
+  logger.error('Critical cache initialization failure:', error);
+  // Create a basic memory cache as last resort
+  cacheInstance = new MemoryCache();
+  logger.warn('Using emergency memory cache fallback');
 });
 
 /**

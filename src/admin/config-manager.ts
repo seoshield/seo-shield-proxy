@@ -5,9 +5,31 @@
 
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 
 // For CommonJS compatibility, use process.cwd() and resolve path
 const CONFIG_FILE = path.join(process.cwd(), 'src', 'admin', 'runtime-config.json');
+
+// Generate secure random password if not provided via env
+const generateSecurePassword = (): string => {
+  return crypto.randomBytes(16).toString('hex');
+};
+
+// Get admin password from env or generate secure default
+const getAdminPassword = (): string => {
+  const envPassword = process.env.ADMIN_CONFIG_PASSWORD;
+  if (envPassword) {
+    return envPassword;
+  }
+  // In production, warn about using generated password
+  if (process.env.NODE_ENV === 'production') {
+    const generatedPassword = generateSecurePassword();
+    console.warn('⚠️  No ADMIN_CONFIG_PASSWORD set, using generated password:', generatedPassword);
+    return generatedPassword;
+  }
+  // In development, use a default (still warn)
+  return 'dev-password-change-me';
+};
 
 export interface AdminAuth {
   enabled: boolean;
@@ -99,8 +121,8 @@ class ConfigManager {
       adminPath: '/admin',
       adminAuth: {
         enabled: true,
-        username: 'admin',
-        password: 'seo-shield-2025', // Should be changed in production
+        username: process.env.ADMIN_CONFIG_USERNAME || 'admin',
+        password: getAdminPassword(),
       },
       cacheRules: {
         noCachePatterns: ['/checkout', '/cart', '/admin/*', '/api/*'],

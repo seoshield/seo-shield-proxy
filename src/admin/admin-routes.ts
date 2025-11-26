@@ -6,6 +6,7 @@
 
 import express, { Router, Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import metricsCollector from './metrics-collector';
 import configManager from './config-manager';
 import cache from '../cache';
@@ -21,13 +22,31 @@ import { broadcastTrafficEvent } from './websocket';
 import { databaseManager } from '../database/database-manager';
 import { ssrEventsStore } from './ssr-events-store';
 import config from '../config';
+import { Logger } from '../utils/logger';
 
+const logger = new Logger('AdminRoutes');
 const router: Router = express.Router();
 
 // JWT Configuration - using centralized config
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRY = '24h';
 const ADMIN_PASSWORD = config.ADMIN_PASSWORD;
+
+/**
+ * Timing-safe password comparison to prevent timing attacks
+ */
+function safePasswordCompare(provided: string, expected: string): boolean {
+  if (!provided || !expected) return false;
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expected);
+  // Ensure same length for timing safety
+  if (providedBuf.length !== expectedBuf.length) {
+    // Still do comparison to maintain constant time
+    crypto.timingSafeEqual(expectedBuf, expectedBuf);
+    return false;
+  }
+  return crypto.timingSafeEqual(providedBuf, expectedBuf);
+}
 
 /**
  * API: Login endpoint for form-based authentication
@@ -44,9 +63,9 @@ router.post('/auth/login', express.json(), (req: Request, res: Response) => {
       });
     }
 
-    // Check password against config
-    if (password !== ADMIN_PASSWORD) {
-      console.log('❌ Login failed: Invalid password attempt');
+    // Check password against config (timing-safe)
+    if (!safePasswordCompare(password, ADMIN_PASSWORD)) {
+      logger.warn('Login failed: Invalid password attempt');
       return res.status(401).json({
         success: false,
         error: 'Invalid password'
@@ -60,7 +79,7 @@ router.post('/auth/login', express.json(), (req: Request, res: Response) => {
       { expiresIn: JWT_EXPIRY }
     );
 
-    console.log('✅ Login successful');
+    logger.info('Login successful');
     return res.json({
       success: true,
       message: 'Login successful',
@@ -231,13 +250,14 @@ function authenticate(req: Request, res: Response, next: NextFunction): void | R
       const [username, password] = credentials.split(':', 2);
 
       if (config?.adminAuth?.username && config?.adminAuth?.password) {
-        if (username === config.adminAuth.username && password === config.adminAuth.password) {
+        if (safePasswordCompare(username, config.adminAuth.username) &&
+            safePasswordCompare(password, config.adminAuth.password)) {
           return next();
         }
       }
 
-      // Fallback to ADMIN_PASSWORD check
-      if (password === ADMIN_PASSWORD) {
+      // Fallback to ADMIN_PASSWORD check (timing-safe)
+      if (safePasswordCompare(password, ADMIN_PASSWORD)) {
         return next();
       }
     } catch (decodeError) {

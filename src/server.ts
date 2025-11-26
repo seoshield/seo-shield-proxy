@@ -112,7 +112,7 @@ function isStaticAsset(path: string): boolean {
 app.use(async (req: Request, res: Response, next: NextFunction) => {
   const userAgent = req.headers['user-agent'] || '';
   const requestPath = req.path;
-  const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+  const clientIP = req.ip || req.socket?.remoteAddress || 'unknown';
 
   // Use advanced bot detection if available, fallback to basic isbot()
   let botDetection;

@@ -5,43 +5,57 @@ import config from '../config';
 
 /**
  * Async wrapper for Redis cache to match synchronous interface
- * Uses promise caching for performance
+ * Uses local value cache for synchronous reads with background refresh
  */
 class AsyncCacheWrapper implements ICacheAdapter {
   private cache: RedisCache;
-  private promiseCache = new Map<string, Promise<CacheEntry | undefined>>();
+  private valueCache = new Map<string, { entry: CacheEntry; timestamp: number }>();
+  private pendingFetches = new Set<string>();
+  private readonly VALUE_CACHE_TTL = 5000; // 5 seconds local cache
 
   constructor(cache: RedisCache) {
     this.cache = cache;
   }
 
-  get(_key: string): string | undefined {
-    // Not ideal for async operations, but maintains interface compatibility
-    console.warn('⚠️  Synchronous get() on Redis is not recommended. Use getWithTTL() instead.');
-    return undefined;
+  get(key: string): string | undefined {
+    // Check local cache first
+    const local = this.valueCache.get(key);
+    if (local && Date.now() - local.timestamp < this.VALUE_CACHE_TTL) {
+      return local.entry.value;
+    }
+    // Trigger background fetch
+    this.backgroundFetch(key);
+    return local?.entry.value;
   }
 
   getWithTTL(key: string): CacheEntry | undefined {
-    // Check promise cache first
-    const cached = this.promiseCache.get(key);
-    if (cached) {
-      // Return cached promise result if available
-      let result: CacheEntry | undefined;
-      cached.then((r) => (result = r));
-      if (result !== undefined) {
-        return result;
-      }
+    // Check local cache first
+    const local = this.valueCache.get(key);
+    if (local && Date.now() - local.timestamp < this.VALUE_CACHE_TTL) {
+      return local.entry;
     }
+    // Trigger background fetch
+    this.backgroundFetch(key);
+    return local?.entry;
+  }
 
-    // Start async fetch (fire and forget)
-    const promise = this.cache.getWithTTLAsync(key);
-    this.promiseCache.set(key, promise);
+  private backgroundFetch(key: string): void {
+    // Avoid duplicate fetches
+    if (this.pendingFetches.has(key)) return;
+    this.pendingFetches.add(key);
 
-    // Clean up promise cache after 100ms
-    setTimeout(() => this.promiseCache.delete(key), 100);
-
-    // Return undefined for first call (async limitation)
-    return undefined;
+    this.cache.getWithTTLAsync(key)
+      .then((entry) => {
+        if (entry) {
+          this.valueCache.set(key, { entry, timestamp: Date.now() });
+        }
+      })
+      .catch(() => {
+        // Silently fail - value cache will serve stale data
+      })
+      .finally(() => {
+        this.pendingFetches.delete(key);
+      });
   }
 
   set(key: string, value: string): boolean {
@@ -54,7 +68,8 @@ class AsyncCacheWrapper implements ICacheAdapter {
 
   flush(): void {
     this.cache.flush();
-    this.promiseCache.clear();
+    this.valueCache.clear();
+    this.pendingFetches.clear();
   }
 
   getStats(): CacheStats {
@@ -74,7 +89,8 @@ class AsyncCacheWrapper implements ICacheAdapter {
   }
 
   async close(): Promise<void> {
-    this.promiseCache.clear();
+    this.valueCache.clear();
+    this.pendingFetches.clear();
     await this.cache.close();
   }
 
@@ -97,7 +113,8 @@ class AsyncCacheWrapper implements ICacheAdapter {
 
   async flushAsync(): Promise<void> {
     await this.cache.flushAsync();
-    this.promiseCache.clear();
+    this.valueCache.clear();
+    this.pendingFetches.clear();
   }
 
   async getStatsAsync(): Promise<CacheStats> {

@@ -7,8 +7,17 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import metricsCollector from './metrics-collector';
 import cache from '../cache';
+import config from '../config';
+import { Logger } from '../utils/logger';
 
+const logger = new Logger('WebSocket');
 let io: Server | null = null;
+let statsInterval: NodeJS.Timeout | null = null;
+
+// CORS origins from environment or defaults
+const CORS_ORIGINS = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',')
+  : ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:3002'];
 
 interface MemoryStats {
   heapUsed: number;
@@ -32,7 +41,7 @@ export function initializeWebSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     path: '/socket.io',
     cors: {
-      origin: ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:3002', 'http://127.0.0.1:3002', 'http://localhost:8080'],
+      origin: CORS_ORIGINS,
       methods: ['GET', 'POST'],
       credentials: true,
     },
@@ -43,14 +52,14 @@ export function initializeWebSocket(httpServer: HttpServer): Server {
   (global as any).io = io;
 
   io.on('connection', (socket: Socket) => {
-    console.log('📡 Admin client connected:', socket.id);
+    logger.info(`Admin client connected: ${socket.id}`);
 
     // Send initial stats on connection
     sendStats(socket);
 
     // Handle disconnect
     socket.on('disconnect', () => {
-      console.log('📡 Admin client disconnected:', socket.id);
+      logger.info(`Admin client disconnected: ${socket.id}`);
     });
 
     // Handle manual stats request
@@ -67,13 +76,34 @@ export function initializeWebSocket(httpServer: HttpServer): Server {
   });
 
   // Broadcast stats to all connected clients every 2 seconds
-  setInterval(() => {
+  // Store interval reference for cleanup
+  statsInterval = setInterval(() => {
     broadcastStats();
   }, 2000);
 
-  console.log('✅ WebSocket server initialized');
+  logger.info('WebSocket server initialized');
   return io;
 }
+
+/**
+ * Cleanup WebSocket resources
+ */
+export function shutdownWebSocket(): void {
+  if (statsInterval) {
+    clearInterval(statsInterval);
+    statsInterval = null;
+    logger.info('WebSocket stats interval cleared');
+  }
+  if (io) {
+    io.close();
+    io = null;
+    logger.info('WebSocket server closed');
+  }
+}
+
+// Graceful shutdown handlers
+process.on('SIGINT', shutdownWebSocket);
+process.on('SIGTERM', shutdownWebSocket);
 
 /**
  * Send stats to a specific socket
@@ -132,4 +162,4 @@ export function broadcastTrafficEvent(trafficData: Record<string, unknown>): voi
   });
 }
 
-export default { initializeWebSocket, broadcastTrafficEvent };
+export default { initializeWebSocket, broadcastTrafficEvent, shutdownWebSocket };
