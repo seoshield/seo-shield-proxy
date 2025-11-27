@@ -1,5 +1,5 @@
 /**
- * API-Only Server - Runs on port 8190
+ * API-Only Server - Runs on port 3190 (configurable via API_PORT env)
  * Only handles /shieldapi/* endpoints for admin dashboard
  */
 
@@ -20,14 +20,18 @@ const PORT = config.API_PORT;
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// CORS for admin dashboard
+// CORS for admin dashboard - dynamic origin support for SSE/EventSource
 app.use((req: Request, res: Response, next: NextFunction) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  // Use specific origin if provided (required for credentials), fallback to *
+  const origin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', origin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Last-Event-ID');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
 
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
+    res.sendStatus(204); // No Content for preflight
   } else {
     next();
   }

@@ -358,23 +358,23 @@ The dashboard connects to the API server. Configure the endpoint:
 
 ```typescript
 // admin-dashboard/src/config/api.ts
-export const API_BASE_URL = 'http://localhost:8190/shieldapi';
-export const WS_URL = 'ws://localhost:8190/shieldapi/ws';
+export const API_BASE_URL = 'http://localhost:3190/shieldapi';
+export const WS_URL = 'ws://localhost:3190/shieldapi/ws';
 ```
 
 ### Environment Variables
 
 ```bash
 # admin-dashboard/.env
-VITE_API_URL=http://localhost:8190/shieldapi
-VITE_WS_URL=ws://localhost:8190/shieldapi/ws
+VITE_API_URL=http://localhost:3190/shieldapi
+VITE_WS_URL=ws://localhost:3190/shieldapi/ws
 ```
 
 ## Troubleshooting
 
 ### Dashboard Won't Load
 
-1. Check API server is running on port 8190
+1. Check API server is running on port 3190
 2. Verify CORS settings allow dashboard origin
 3. Check browser console for errors
 

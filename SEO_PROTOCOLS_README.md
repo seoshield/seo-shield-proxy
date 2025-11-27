@@ -270,7 +270,7 @@ curl -H "User-Agent: Mozilla/5.0 (compatible; Googlebot/2.1)" http://localhost:8
 curl -I http://localhost:8080/test-seo
 
 # Monitor protocol status (API server)
-curl http://localhost:8190/shieldapi/seo/status
+curl http://localhost:3190/shieldapi/seo/status
 ```
 
 ## 🔍 Troubleshooting
@@ -305,7 +305,7 @@ DEBUG=seo-protocols npm run dev
 
 ### Health Check
 ```bash
-curl http://localhost:8190/shieldapi/seo/status | jq '.'
+curl http://localhost:3190/shieldapi/seo/status | jq '.'
 ```
 
 ## 🏢 Enterprise Comparison

@@ -23,10 +23,10 @@ describe('Config Module', () => {
       expect(config.PORT).toBe(8080);
     });
 
-    it('should have default API_PORT of 8190', async () => {
+    it('should have default API_PORT of 3190', async () => {
       delete process.env.API_PORT;
       const { default: config } = await import('../../src/config');
-      expect(config.API_PORT).toBe(8190);
+      expect(config.API_PORT).toBe(3190);
     });
 
     it('should have default CACHE_TTL of 3600', async () => {
@@ -235,7 +235,7 @@ describe('Config Module', () => {
     it('should handle non-numeric API_PORT gracefully', async () => {
       process.env.API_PORT = 'abc';
       const { default: config } = await import('../../src/config');
-      expect(config.API_PORT).toBe(8190);
+      expect(config.API_PORT).toBe(3190);
     });
   });
 

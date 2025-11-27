@@ -172,11 +172,11 @@ CUSTOM_BOT_PATTERNS='[{"pattern":"MyCrawler","action":"allow"}]'
 
 ```bash
 # Get current bot rules
-curl http://localhost:8190/shieldapi/bot-rules \
+curl http://localhost:3190/shieldapi/bot-rules \
   -H "Authorization: Bearer TOKEN"
 
 # Add new rule
-curl -X POST http://localhost:8190/shieldapi/bot-rules \
+curl -X POST http://localhost:3190/shieldapi/bot-rules \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

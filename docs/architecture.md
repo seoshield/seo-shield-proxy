@@ -16,7 +16,7 @@ SEO Shield Proxy uses a **port-based microservice separation** architecture that
                     ▼                                 ▼                                 ▼
         ┌───────────────────┐           ┌───────────────────┐           ┌───────────────────┐
         │   Main Proxy      │           │    API Server     │           │  Admin Dashboard  │
-        │    Port 8080      │           │    Port 8190      │           │    Port 3001      │
+        │    Port 8080      │           │    Port 3190      │           │    Port 3001      │
         ├───────────────────┤           ├───────────────────┤           ├───────────────────┤
         │ • Bot Detection   │           │ • /shieldapi/*    │           │ • React UI        │
         │ • SSR Rendering   │           │ • Authentication  │           │ • Real-time Stats │
@@ -55,7 +55,7 @@ SEO Shield Proxy uses a **port-based microservice separation** architecture that
 | Port | Service | Purpose | Access |
 |------|---------|---------|--------|
 | **8080** | Main Proxy | Pure reverse proxy with SSR | Public |
-| **8190** | API Server | Admin APIs, WebSocket | Internal/Admin |
+| **3190** | API Server | Admin APIs, WebSocket | Internal/Admin |
 | **3001** | Dashboard | React admin interface | Admin only |
 | **6379** | Redis | Cache storage (production) | Internal |
 | **27017** | MongoDB | Analytics and persistence | Internal |
@@ -79,10 +79,10 @@ The main proxy server on port 8080 is designed to be **minimal and focused**:
 
 ### 2. API Server Separation
 
-All administrative functionality lives on port 8190:
+All administrative functionality lives on port 3190:
 
 ```typescript
-// Port 8190 handles:
+// Port 3190 handles:
 // - /shieldapi/auth/*      - Authentication
 // - /shieldapi/stats       - Traffic statistics
 // - /shieldapi/cache/*     - Cache management
@@ -180,7 +180,7 @@ The system is designed to **never block users**:
 
 ```typescript
 // Core responsibilities:
-- Express server on API_PORT (8190)
+- Express server on API_PORT (3190)
 - JWT authentication
 - Admin API routes (/shieldapi/*)
 - WebSocket server for real-time updates
@@ -295,7 +295,7 @@ The system is designed to **never block users**:
     │   │                                   │   │
     │   ▼                                   ▼   │
     │ ┌───────────────┐           ┌───────────────┐
-    │ │ Port 8190     │           │ Port 3001     │
+    │ │ Port 3190     │           │ Port 3001     │
     │ │ API Server    │           │ Dashboard     │
     │ │ (Admin only)  │           │ (Admin only)  │
     │ └───────────────┘           └───────────────┘
@@ -307,7 +307,7 @@ The system is designed to **never block users**:
 
 ```
 1. Admin visits dashboard (port 3001)
-2. Dashboard requests /shieldapi/auth/login (port 8190)
+2. Dashboard requests /shieldapi/auth/login (port 3190)
 3. API validates credentials against ADMIN_PASSWORD
 4. JWT token issued (signed with JWT_SECRET)
 5. Dashboard stores token
@@ -321,7 +321,7 @@ The system is designed to **never block users**:
 seo-shield-proxy/
 ├── src/
 │   ├── server.ts              # Main proxy (8080)
-│   ├── api-server.ts          # API server (8190)
+│   ├── api-server.ts          # API server (3190)
 │   ├── config.ts              # Configuration management
 │   ├── browser.ts             # Puppeteer browser pool
 │   ├── cache.ts               # Cache abstraction layer

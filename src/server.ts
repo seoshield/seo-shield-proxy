@@ -2,7 +2,7 @@
  * Ultra-Clean SEO Proxy Server - Port 8080
  * Pure proxy only - no admin routes, no API endpoints
  * All admin functions are handled by separate services:
- * - Port 8190: API server (/shieldapi/*)
+ * - Port 3190: API server (/shieldapi/*)
  * - Port 3001: Admin dashboard
  */
 
@@ -47,7 +47,7 @@ async function sendTrafficEvent(trafficData: any) {
     }
 
     // Also send to API server for real-time updates
-    const response = await fetch('http://localhost:8190/shieldapi/traffic-events', {
+    const response = await fetch(`http://localhost:${config.API_PORT}/shieldapi/traffic-events`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

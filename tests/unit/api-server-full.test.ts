@@ -37,7 +37,7 @@ vi.mock('../../src/admin/websocket', () => ({
 // Mock config
 vi.mock('../../src/config', () => ({
   default: {
-    API_PORT: 8190
+    API_PORT: 3190
   }
 }));
 
@@ -177,7 +177,7 @@ describe('API Server', () => {
         res.json({
           status: 'ok',
           service: 'seo-shield-api',
-          port: 8190,
+          port: 3190,
           timestamp: new Date().toISOString(),
           database: dbHealth.connected ? 'connected' : 'disconnected',
           databaseStats: dbHealth.stats || null
@@ -193,7 +193,7 @@ describe('API Server', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         status: 'ok',
         service: 'seo-shield-api',
-        port: 8190,
+        port: 3190,
         database: 'connected'
       }));
     });
@@ -209,7 +209,7 @@ describe('API Server', () => {
         res.json({
           status: 'ok',
           service: 'seo-shield-api',
-          port: 8190,
+          port: 3190,
           timestamp: new Date().toISOString(),
           database: dbHealth.connected ? 'connected' : 'disconnected',
           databaseStats: dbHealth.stats || null
@@ -423,10 +423,10 @@ describe('API Server', () => {
         console.log('Health check: /shieldhealth');
       };
 
-      logStartupBanner(8190);
+      logStartupBanner(3190);
 
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('SEO Shield API Server'));
-      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('API Server running on port 8190'));
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('API Server running on port 3190'));
 
       logSpy.mockRestore();
     });
@@ -439,7 +439,7 @@ describe('API Server', () => {
         console.log(`API Server running on port ${port} (Database fallback mode)`);
       };
 
-      logFallbackStartup(8190);
+      logFallbackStartup(3190);
 
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('(Database fallback mode)'));
 
@@ -473,7 +473,7 @@ describe('API Server', () => {
         listen: listenFn
       };
 
-      const PORT = 8190;
+      const PORT = 3190;
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       server.listen(PORT, '0.0.0.0', () => {
@@ -657,7 +657,7 @@ describe('API Server Configuration', () => {
   describe('Port configuration', () => {
     it('should use API_PORT from config', async () => {
       const config = await import('../../src/config');
-      expect(config.default.API_PORT).toBe(8190);
+      expect(config.default.API_PORT).toBe(3190);
     });
   });
 

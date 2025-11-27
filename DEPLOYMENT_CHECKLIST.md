@@ -133,7 +133,7 @@ pm2 status
 curl http://localhost:8080/shieldhealth
 
 # Test API server
-curl http://localhost:8190/shieldapi/stats
+curl http://localhost:3190/shieldapi/stats
 
 # Test transparent proxy
 curl -H "User-Agent: Mozilla/5.0 (compatible; Googlebot/2.1)" \
@@ -151,13 +151,13 @@ curl http://localhost:3001
 curl http://localhost:8080/shieldhealth
 
 # API server status
-curl http://localhost:8190/shieldapi/stats | jq
+curl http://localhost:3190/shieldapi/stats | jq
 
 # Admin dashboard accessibility
 curl -I http://localhost:3001
 
 # Configuration verification
-curl http://localhost:8190/shieldapi/config | jq
+curl http://localhost:3190/shieldapi/config | jq
 ```
 
 ### **Log Monitoring**

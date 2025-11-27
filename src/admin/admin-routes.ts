@@ -203,6 +203,52 @@ router.get('/auth/status', (req: Request, res: Response) => {
 });
 
 /**
+ * Optional Authentication Middleware
+ * Allows read-only access for localhost/development without auth
+ * Still validates token if provided
+ */
+function optionalAuth(req: Request, res: Response, next: NextFunction): void | Response {
+  const config = configManager.getConfig();
+
+  // Check if auth is disabled in config
+  if (config?.adminAuth?.enabled === false) {
+    return next();
+  }
+
+  // Development mode - allow all requests without auth
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+
+  // Allow localhost requests without auth (for dashboard)
+  // Check multiple IP formats: IPv4, IPv6, and mapped addresses
+  const ip = req.ip || req.socket?.remoteAddress || '';
+  const localhostPatterns = [
+    '127.0.0.1',
+    '::1',
+    '::ffff:127.0.0.1',
+    'localhost',
+    '0:0:0:0:0:0:0:1', // Full IPv6 localhost
+  ];
+  const isLocalhost = localhostPatterns.some(pattern => ip.includes(pattern));
+  if (isLocalhost) {
+    return next();
+  }
+
+  // If auth header provided, validate it (fall through to authenticate)
+  const authHeader = req.headers.authorization;
+  if (authHeader) {
+    return authenticate(req, res, next);
+  }
+
+  // No auth in production from non-localhost - reject
+  return res.status(401).json({
+    success: false,
+    error: 'Authentication required for non-localhost requests'
+  });
+}
+
+/**
  * JWT Authentication Middleware
  * Validates Bearer token or allows bypass when auth is disabled
  */
@@ -274,7 +320,7 @@ function authenticate(req: Request, res: Response, next: NextFunction): void | R
 /**
  * API: Get statistics
  */
-router.get('/stats', authenticate, (_req: Request, res: Response) => {
+router.get('/stats', optionalAuth, (_req: Request, res: Response) => {
   const stats = metricsCollector.getStats();
   const botStats = metricsCollector.getBotStats();
   const cacheStats = cache.getStats();
@@ -295,7 +341,7 @@ router.get('/stats', authenticate, (_req: Request, res: Response) => {
 /**
  * API: Get recent traffic
  */
-router.get('/traffic', authenticate, async (req: Request, res: Response) => {
+router.get('/traffic', optionalAuth, async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query['limit'] as string) || 100;
     const mongoStorage = databaseManager.getMongoStorage();
@@ -342,7 +388,7 @@ router.get('/traffic', authenticate, async (req: Request, res: Response) => {
 /**
  * API: Get traffic timeline
  */
-router.get('/timeline', authenticate, (req: Request, res: Response) => {
+router.get('/timeline', optionalAuth, (req: Request, res: Response) => {
   const minutes = parseInt(req.query['minutes'] as string) || 60;
   const timeline = metricsCollector.getTrafficTimeline(minutes);
 
@@ -355,7 +401,7 @@ router.get('/timeline', authenticate, (req: Request, res: Response) => {
 /**
  * API: Get URL statistics
  */
-router.get('/urls', authenticate, (req: Request, res: Response) => {
+router.get('/urls', optionalAuth, (req: Request, res: Response) => {
   const limit = parseInt(req.query['limit'] as string) || 50;
   const urlStats = metricsCollector.getUrlStats(limit);
 
@@ -368,7 +414,7 @@ router.get('/urls', authenticate, (req: Request, res: Response) => {
 /**
  * API: Get cache list
  */
-router.get('/cache', authenticate, (_req: Request, res: Response) => {
+router.get('/cache', optionalAuth, (_req: Request, res: Response) => {
   const cacheData = cache.getAllEntries();
 
   res.json({
@@ -380,7 +426,7 @@ router.get('/cache', authenticate, (_req: Request, res: Response) => {
 /**
  * API: Get advanced cache analytics
  */
-router.get('/cache/analytics', authenticate, (_req: Request, res: Response) => {
+router.get('/cache/analytics', optionalAuth, (_req: Request, res: Response) => {
   try {
     const cacheData = cache.getAllEntries();
     const cacheStats = cache.getStats();
@@ -817,12 +863,28 @@ router.post('/metrics/reset', authenticate, (_req: Request, res: Response) => {
 /**
  * API: Real-time updates (Server-Sent Events) - Public endpoint for EventSource
  */
+router.options('/stream', (_req: Request, res: Response) => {
+  // Handle CORS preflight for SSE endpoint
+  const origin = _req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Last-Event-ID');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.sendStatus(204);
+});
+
 router.get('/stream', (req: Request, res: Response) => {
+  // CORS headers for SSE - use specific origin if provided, fallback to *
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Last-Event-ID');
+
+  // SSE-specific headers
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
   // Send initial connection event
   res.write(`data: ${JSON.stringify({
@@ -857,10 +919,29 @@ router.get('/stream', (req: Request, res: Response) => {
 /**
  * API: Authenticated stream endpoint (for future use)
  */
+router.options('/stream/auth', (_req: Request, res: Response) => {
+  // Handle CORS preflight for authenticated SSE endpoint
+  const origin = _req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Last-Event-ID, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.sendStatus(204);
+});
+
 router.get('/stream/auth', authenticate, (req: Request, res: Response) => {
+  // CORS headers for SSE
+  const origin = req.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Last-Event-ID, Authorization');
+
+  // SSE-specific headers
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
   // Send stats every 2 seconds with additional authenticated data
   const interval = setInterval(() => {
@@ -888,7 +969,7 @@ router.get('/stream/auth', authenticate, (req: Request, res: Response) => {
 /**
  * API: Get cache warmer stats
  */
-router.get('/warmer/stats', authenticate, (_req: Request, res: Response) => {
+router.get('/warmer/stats', optionalAuth, (_req: Request, res: Response) => {
   const stats = cacheWarmer.getStats();
   const estimatedTime = cacheWarmer.getEstimatedTime();
 
@@ -1043,7 +1124,7 @@ router.post('/snapshots/capture', authenticate, express.json(), async (req: Requ
 /**
  * API: Get snapshot by ID
  */
-router.get('/snapshots/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/snapshots/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const snapshot = await snapshotService.getSnapshot(id);
@@ -1070,7 +1151,7 @@ router.get('/snapshots/:id', authenticate, async (req: Request, res: Response) =
 /**
  * API: Get all snapshots with pagination
  */
-router.get('/snapshots', authenticate, async (req: Request, res: Response) => {
+router.get('/snapshots', optionalAuth, async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query['page'] as string) || 1;
     const limit = parseInt(req.query['limit'] as string) || 20;
@@ -1092,7 +1173,7 @@ router.get('/snapshots', authenticate, async (req: Request, res: Response) => {
 /**
  * API: Get snapshot history for URL
  */
-router.get('/snapshots/history/:url', authenticate, async (req: Request, res: Response) => {
+router.get('/snapshots/history/:url', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { url } = req.params;
     const limit = parseInt(req.query['limit'] as string) || 10;
@@ -1142,7 +1223,7 @@ router.post('/snapshots/compare', authenticate, express.json(), async (req: Requ
 /**
  * API: Get diff result by ID
  */
-router.get('/snapshots/diff/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/snapshots/diff/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const diff = await snapshotService.getDiff(id);
@@ -1190,7 +1271,7 @@ router.delete('/snapshots/:id', authenticate, async (req: Request, res: Response
 /**
  * API: Get hotfix rules
  */
-router.get('/hotfix/rules', authenticate, (_req: Request, res: Response) => {
+router.get('/hotfix/rules', optionalAuth, (_req: Request, res: Response) => {
   try {
     const rules = hotfixEngine.getRules();
 
@@ -1209,7 +1290,7 @@ router.get('/hotfix/rules', authenticate, (_req: Request, res: Response) => {
 /**
  * API: Get hotfix stats
  */
-router.get('/hotfix/stats', authenticate, (_req: Request, res: Response) => {
+router.get('/hotfix/stats', optionalAuth, (_req: Request, res: Response) => {
   try {
     const stats = hotfixEngine.getStats();
 
@@ -1364,7 +1445,7 @@ router.post('/hotfix/test', authenticate, express.json(), async (req: Request, r
 /**
  * API: Get hotfix test history
  */
-router.get('/hotfix/tests', authenticate, (req: Request, res: Response) => {
+router.get('/hotfix/tests', optionalAuth, (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query['limit'] as string) || 20;
     const history = hotfixEngine.getTestHistory(limit);
@@ -1384,7 +1465,7 @@ router.get('/hotfix/tests', authenticate, (req: Request, res: Response) => {
 /**
  * API: Get forensics stats
  */
-router.get('/forensics/stats', authenticate, async (_req: Request, res: Response) => {
+router.get('/forensics/stats', optionalAuth, async (_req: Request, res: Response) => {
   try {
     const stats = await forensicsCollector.getStats();
 
@@ -1403,7 +1484,7 @@ router.get('/forensics/stats', authenticate, async (_req: Request, res: Response
 /**
  * API: Get forensics errors
  */
-router.get('/forensics/errors', authenticate, async (req: Request, res: Response) => {
+router.get('/forensics/errors', optionalAuth, async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query['page'] as string) || 1;
     const limit = parseInt(req.query['limit'] as string) || 50;
@@ -1425,7 +1506,7 @@ router.get('/forensics/errors', authenticate, async (req: Request, res: Response
 /**
  * API: Get specific error
  */
-router.get('/forensics/errors/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/forensics/errors/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const error = await forensicsCollector.getError(id);
@@ -1452,7 +1533,7 @@ router.get('/forensics/errors/:id', authenticate, async (req: Request, res: Resp
 /**
  * API: Get errors by URL
  */
-router.get('/forensics/errors/by-url/:url', authenticate, async (req: Request, res: Response) => {
+router.get('/forensics/errors/by-url/:url', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { url } = req.params;
     const limit = parseInt(req.query['limit'] as string) || 20;
@@ -1516,7 +1597,7 @@ router.post('/forensics/cleanup', authenticate, express.json(), async (req: Requ
 /**
  * API: Get blocking rules
  */
-router.get('/blocking/rules', authenticate, (_req: Request, res: Response) => {
+router.get('/blocking/rules', optionalAuth, (_req: Request, res: Response) => {
   try {
     const rules = blockingManager.getRules();
 
@@ -1535,7 +1616,7 @@ router.get('/blocking/rules', authenticate, (_req: Request, res: Response) => {
 /**
  * API: Get blocking stats
  */
-router.get('/blocking/stats', authenticate, (_req: Request, res: Response) => {
+router.get('/blocking/stats', optionalAuth, (_req: Request, res: Response) => {
   try {
     const stats = blockingManager.getStats();
 
@@ -1676,7 +1757,7 @@ router.post('/blocking/rules/:id/toggle', authenticate, async (req: Request, res
 /**
  * API: Get blocking rule by ID
  */
-router.get('/blocking/rules/:id', authenticate, async (req: Request, res: Response) => {
+router.get('/blocking/rules/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -1704,7 +1785,7 @@ router.get('/blocking/rules/:id', authenticate, async (req: Request, res: Respon
 /**
  * API: Get user agent templates
  */
-router.get('/simulate/user-agents', authenticate, (_req: Request, res: Response) => {
+router.get('/simulate/user-agents', optionalAuth, (_req: Request, res: Response) => {
   try {
     const userAgents = uaSimulator.getUserAgents();
 
@@ -1760,7 +1841,7 @@ router.post('/simulate/start', authenticate, express.json(), async (req: Request
 /**
  * API: Get simulation history
  */
-router.get('/simulate/history', authenticate, (req: Request, res: Response) => {
+router.get('/simulate/history', optionalAuth, (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query['limit'] as string) || 20;
     const history = uaSimulator.getSimulationHistory(limit);
@@ -1780,7 +1861,7 @@ router.get('/simulate/history', authenticate, (req: Request, res: Response) => {
 /**
  * API: Get active simulations
  */
-router.get('/simulate/active', authenticate, (_req: Request, res: Response) => {
+router.get('/simulate/active', optionalAuth, (_req: Request, res: Response) => {
   try {
     const active = uaSimulator.getActiveSimulations();
 
@@ -1799,7 +1880,7 @@ router.get('/simulate/active', authenticate, (_req: Request, res: Response) => {
 /**
  * API: Get simulation stats
  */
-router.get('/simulate/stats', authenticate, (_req: Request, res: Response) => {
+router.get('/simulate/stats', optionalAuth, (_req: Request, res: Response) => {
   try {
     const stats = uaSimulator.getStats();
 
@@ -1865,7 +1946,7 @@ router.post('/simulate/compare', authenticate, express.json(), async (req: Reque
  * NOTE: This route must come AFTER specific routes (history, active, stats, compare)
  * because :id would match those paths otherwise
  */
-router.get('/simulate/:id', authenticate, (req: Request, res: Response) => {
+router.get('/simulate/:id', optionalAuth, (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const simulation = uaSimulator.getSimulation(id);
@@ -1913,7 +1994,7 @@ router.post('/simulate/:id/cancel', authenticate, async (req: Request, res: Resp
 /**
  * API: Get SSR events (real data from SSR Events Store)
  */
-router.get('/ssr/events', authenticate, (req: Request, res: Response) => {
+router.get('/ssr/events', optionalAuth, (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query['limit'] as string) || 50;
     const events = ssrEventsStore.getRecentEvents(limit);
@@ -1936,7 +2017,7 @@ router.get('/ssr/events', authenticate, (req: Request, res: Response) => {
 /**
  * API: Get SEO protocols status
  */
-router.get('/seo-protocols/status', authenticate, async (_req: Request, res: Response) => {
+router.get('/seo-protocols/status', optionalAuth, async (_req: Request, res: Response) => {
   try {
     const service = getSEOProtocolsService();
     const status = await service.getStatus();
@@ -2120,7 +2201,7 @@ router.post('/traffic-events', express.json(), (req: Request, res: Response) => 
 /**
  * API: Get audit logs (structured logging)
  */
-router.get('/audit-logs', authenticate, async (req: Request, res: Response) => {
+router.get('/audit-logs', optionalAuth, async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query['limit'] as string) || 100;
     const offset = parseInt(req.query['offset'] as string) || 0;
@@ -2214,7 +2295,7 @@ router.post('/audit-logs', authenticate, express.json(), async (req: Request, re
 /**
  * API: Get error logs
  */
-router.get('/error-logs', authenticate, async (req: Request, res: Response) => {
+router.get('/error-logs', optionalAuth, async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query['limit'] as string) || 100;
     const offset = parseInt(req.query['offset'] as string) || 0;
@@ -2317,7 +2398,7 @@ router.post('/error-logs', authenticate, express.json(), async (req: Request, re
 /**
  * API: Get database health and statistics
  */
-router.get('/database-stats', authenticate, async (req: Request, res: Response) => {
+router.get('/database-stats', optionalAuth, async (req: Request, res: Response) => {
   try {
     const dbHealth = await databaseManager.healthCheck();
     const mongoStorage = databaseManager.getMongoStorage();

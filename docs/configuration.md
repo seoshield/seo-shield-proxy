@@ -20,7 +20,7 @@ TARGET_URL=https://your-spa.com
 
 # Optional (defaults shown)
 PORT=8080
-API_PORT=8190
+API_PORT=3190
 CACHE_TYPE=memory
 CACHE_TTL=3600
 ```
@@ -32,14 +32,14 @@ CACHE_TTL=3600
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `PORT` | number | `8080` | Main proxy server port |
-| `API_PORT` | number | `8190` | Admin API server port |
+| `API_PORT` | number | `3190` | Admin API server port |
 | `NODE_ENV` | string | `production` | Environment mode (`development`, `production`, `test`) |
 
 **Example:**
 
 ```bash
 PORT=8080
-API_PORT=8190
+API_PORT=3190
 NODE_ENV=production
 ```
 
@@ -175,7 +175,7 @@ USER_AGENT=Mozilla/5.0 (compatible; SEOShieldProxy/1.0)
 ```bash
 # .env (development)
 PORT=8080
-API_PORT=8190
+API_PORT=3190
 TARGET_URL=http://localhost:3000
 NODE_ENV=development
 
@@ -200,7 +200,7 @@ PUPPETEER_TIMEOUT=30000
 ```bash
 # .env (production)
 PORT=8080
-API_PORT=8190
+API_PORT=3190
 TARGET_URL=https://your-production-spa.com
 NODE_ENV=production
 
@@ -231,7 +231,7 @@ CACHE_BY_DEFAULT=true
 ```bash
 # .env.docker
 PORT=8080
-API_PORT=8190
+API_PORT=3190
 TARGET_URL=http://demo-spa:3000
 NODE_ENV=production
 
@@ -282,7 +282,7 @@ Some settings can be changed at runtime through the Admin API:
 
 ```bash
 # Update cache TTL
-curl -X PUT http://localhost:8190/shieldapi/config \
+curl -X PUT http://localhost:3190/shieldapi/config \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"cacheTTL": 7200}'

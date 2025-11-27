@@ -31,7 +31,7 @@ The SEO Shield Proxy implements a **microservice architecture** with complete po
 ┌─────────────────────────────────────────────────────────────────┐
 │                    SEO Shield Proxy System                     │
 ├─────────────────┬─────────────────┬─────────────────┬──────────┤
-│   Port 8080     │    Port 8190     │    Port 3001     │ Port 6379 │
+│   Port 8080     │    Port 3190     │    Port 3001     │ Port 6379 │
 │  Main Proxy     │   API Server     │ Admin Dashboard │  Redis   │
 └─────────────────┴─────────────────┴─────────────────┴──────────┘
 ```
@@ -52,7 +52,7 @@ The SEO Shield Proxy implements a **microservice architecture** with complete po
                        └──────────────────┘    └─────────────────┘
 ```
 
-#### **Port 8190 - API Server**
+#### **Port 3190 - API Server**
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Admin APIs    │───▶│  /shieldapi/*    │───▶│  Admin Services │
@@ -64,7 +64,7 @@ The SEO Shield Proxy implements a **microservice architecture** with complete po
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   React Admin   │───▶│   WebSocket      │───▶│   API Server    │
-│   (UI Interface)│    │   Real-time      │    │   (Port 8190)   │
+│   (UI Interface)│    │   Real-time      │    │   (Port 3190)   │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
@@ -86,7 +86,7 @@ The SEO Shield Proxy implements a **microservice architecture** with complete po
 - **Caching**: Memory/Redis with SWR strategy
 - **Health Check**: Only direct endpoint (`/shieldhealth`)
 
-#### **API Server (Port 8190)**
+#### **API Server (Port 3190)**
 - **Admin APIs**: `/shieldapi/*` endpoints
 - **Rate Limiting**: Multi-tier protection
 - **Authentication**: Basic auth with secure credentials
@@ -126,7 +126,7 @@ The SEO Shield Proxy implements a **microservice architecture** with complete po
 
 4. **Admin Dashboard** (`admin-dashboard/`)
    - React interface running on port 3001
-   - Real-time monitoring via API server (port 8190)
+   - Real-time monitoring via API server (port 3190)
    - WebSocket-powered live updates
    - Traffic analytics and management
 
@@ -387,7 +387,7 @@ The proxy also supports hot-reloadable JSON configuration for advanced settings:
 | `GET` | `/shieldhealth` | Health check with system metrics |
 | `ALL` | `/*` | Transparent proxy - forwards to TARGET_URL |
 
-### API Server Endpoints (Port 8190)
+### API Server Endpoints (Port 3190)
 
 | Method | Endpoint | Authentication | Description |
 |--------|----------|----------------|-------------|
@@ -399,7 +399,7 @@ The proxy also supports hot-reloadable JSON configuration for advanced settings:
 | `POST` | `/shieldapi/cache/clear` | Required | Clear cache (specific or all) |
 | `GET` | `/shieldapi/config` | Required | Current system configuration |
 
-### WebSocket Endpoints (Port 8190)
+### WebSocket Endpoints (Port 3190)
 
 | Endpoint | Description |
 |----------|-------------|
@@ -669,7 +669,7 @@ docker-compose up -d
 
 # Access services
 # Main Proxy: http://localhost:8080 (transparent proxy + /shieldhealth)
-# API Server: http://localhost:8190 (/shieldapi/* endpoints)
+# API Server: http://localhost:3190 (/shieldapi/* endpoints)
 # Admin Dashboard: http://localhost:3001 (React interface)
 # Redis Cache: localhost:6379
 ```
@@ -719,14 +719,14 @@ services:
     depends_on:
       - redis
 
-  # API Server (Port 8190)
+  # API Server (Port 3190)
   seo-api:
     build: .
     command: ["sh", "-c", "npm run build:api && node dist/api-server.js"]
     ports:
-      - "8190:8190"
+      - "3190:3190"
     environment:
-      - API_PORT=8190
+      - API_PORT=3190
     depends_on:
       - redis
 

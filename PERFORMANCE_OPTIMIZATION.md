@@ -174,7 +174,7 @@ export NODE_OPTIONS="--max-old-space-size=4096 --max-new-space-size=1024"
 The ultra-clean architecture provides performance benefits:
 
 - **Port 8080 (Main Proxy)**: Dedicated to transparent proxying only
-- **Port 8190 (API Server)**: Isolated admin operations won't affect proxy performance
+- **Port 3190 (API Server)**: Isolated admin operations won't affect proxy performance
 - **Port 3001 (Admin Dashboard)**: Separate UI service prevents blocking proxy traffic
 - **Port 6379 (Redis)**: Dedicated cache service for optimal performance
 

@@ -15,8 +15,11 @@ export const generalRateLimiter = rateLimit({
   standardHeaders: true, // Return rate limit info in headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   skip: (req) => {
-    // Skip rate limiting for health checks and internal requests
-    return req.path === '/shieldhealth' || req.ip === '127.0.0.1' || req.ip === '::1';
+    // Skip rate limiting for health checks and localhost
+    const ip = req.ip || '';
+    const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    const isHealthCheck = req.path === '/shieldhealth';
+    return isLocalhost || isHealthCheck;
   },
 });
 
@@ -38,23 +41,31 @@ export const ssrRateLimiter = rateLimit({
 /**
  * Admin panel rate limiter
  * Protects authentication and admin endpoints
+ * More permissive for dashboard polling (stats, metrics, etc.)
  */
 export const adminRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: config.NODE_ENV === 'production' ? 30 : 300, // Very strict for admin
+  windowMs: 1 * 60 * 1000, // 1 minute window (shorter, more responsive)
+  max: config.NODE_ENV === 'production' ? 120 : 1000, // 120/min in prod, 1000/min in dev
   message: {
     error: 'Too many admin requests, please try again later.',
-    retryAfter: '15 minutes'
+    retryAfter: '1 minute'
   },
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: false,
+  skip: (req) => {
+    // Skip rate limiting for localhost/dashboard and health checks
+    const ip = req.ip || '';
+    const isLocalhost = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+    const isHealthCheck = req.path === '/shieldhealth';
+    return isLocalhost || isHealthCheck;
+  },
   handler: (req, res, _next) => {
     // Log admin rate limit violations
     console.warn(`🚨 Admin rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
     res.status(429).json({
       error: 'Too many admin requests, please try again later.',
-      retryAfter: '15 minutes'
+      retryAfter: '1 minute'
     });
   },
 });

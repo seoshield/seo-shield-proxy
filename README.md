@@ -16,7 +16,7 @@ Production-ready reverse proxy that transforms Single Page Applications (SPAs) i
 ```text
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   Main Proxy    │     │   API Server    │     │    Dashboard    │
-│   Port 8080     │     │   Port 8190     │     │   Port 3001     │
+│   Port 8080     │     │   Port 3190     │     │   Port 3001     │
 ├─────────────────┤     ├─────────────────┤     ├─────────────────┤
 │ • Bot Detection │     │ • Admin APIs    │     │ • React UI      │
 │ • SSR Rendering │     │ • WebSocket     │     │ • Real-time     │
@@ -49,7 +49,7 @@ cp .env.example .env
 
 # Start all services
 npm run dev          # Main proxy (8080)
-npm run dev:api      # API server (8190)
+npm run dev:api      # API server (3190)
 cd admin-dashboard && npm run dev  # Dashboard (3001)
 ```
 
@@ -69,7 +69,7 @@ TARGET_URL=https://your-spa.com
 
 # Server
 PORT=8080
-API_PORT=8190
+API_PORT=3190
 
 # Cache
 CACHE_TYPE=memory          # memory or redis
@@ -100,7 +100,7 @@ CACHE_BY_DEFAULT=true
 | Service | URL | Purpose |
 |---------|-----|---------|
 | Main Proxy | `http://localhost:8080` | Reverse proxy with SSR |
-| API Server | `http://localhost:8190` | Admin APIs |
+| API Server | `http://localhost:3190` | Admin APIs |
 | Dashboard | `http://localhost:3001` | Admin interface |
 
 ### Testing

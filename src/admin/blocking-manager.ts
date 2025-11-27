@@ -34,8 +34,12 @@ interface BlockingRule {
 interface BlockingStats {
   totalRules: number;
   enabledRules: number;
+  activeRules: number; // Alias for enabledRules (for frontend compatibility)
   totalBlocked: number;
+  totalAllowed: number; // For frontend compatibility
   todayBlocked: number;
+  blockedToday: number; // Alias for todayBlocked (for frontend compatibility)
+  mostBlockedPattern: string; // For frontend compatibility
   topBlocked: Array<{
     pattern: string;
     count: number;
@@ -386,12 +390,19 @@ class BlockingManager {
     // Sort top blocked
     topBlocked.sort((a, b) => b.count - a.count);
 
+    const enabledRules = rules.filter(r => r.enabled).length;
+    const topBlockedList = topBlocked.slice(0, 10);
+
     return {
       totalRules: rules.length,
-      enabledRules: rules.filter(r => r.enabled).length,
+      enabledRules,
+      activeRules: enabledRules, // Alias for frontend
       totalBlocked,
+      totalAllowed: 0, // Not tracked, default to 0
       todayBlocked,
-      topBlocked: topBlocked.slice(0, 10),
+      blockedToday: todayBlocked, // Alias for frontend
+      mostBlockedPattern: topBlockedList[0]?.pattern || '', // For frontend
+      topBlocked: topBlockedList,
       performanceImpact: {
         averageLatency: this.estimateLatencySavings(),
         bandwidthSaved: this.estimateBandwidthSavings(),

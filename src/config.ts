@@ -322,8 +322,8 @@ const config: Config = {
   // Server port - default to 8080
   PORT: parseInt(process.env['PORT'] || '8080', 10) || 8080,
 
-  // API Server port - default to 8190
-  API_PORT: parseInt(process.env['API_PORT'] || '8190', 10) || 8190,
+  // API Server port - default to 3190 (avoiding Windows Hyper-V reserved range 8099-8198)
+  API_PORT: parseInt(process.env['API_PORT'] || '3190', 10) || 3190,
 
   // Target URL for the SPA (required)
   TARGET_URL: process.env['TARGET_URL'] || '',

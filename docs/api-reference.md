@@ -2,12 +2,12 @@
 
 ## Overview
 
-The Admin API runs on port **8190** and provides endpoints for managing the SEO Shield Proxy. All admin endpoints are prefixed with `/shieldapi/`.
+The Admin API runs on port **3190** and provides endpoints for managing the SEO Shield Proxy. All admin endpoints are prefixed with `/shieldapi/`.
 
 ## Base URL
 
 ```
-http://localhost:8190/shieldapi
+http://localhost:3190/shieldapi
 ```
 
 ## Authentication
@@ -556,7 +556,7 @@ Authorization: Bearer <token>
 #### Connect to WebSocket
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8190/shieldapi/ws');
+const ws = new WebSocket('ws://localhost:3190/shieldapi/ws');
 
 ws.onopen = () => {
   // Authenticate
@@ -665,22 +665,22 @@ Response includes pagination metadata:
 
 ```bash
 # Login
-curl -X POST http://localhost:8190/shieldapi/auth/login \
+curl -X POST http://localhost:3190/shieldapi/auth/login \
   -H "Content-Type: application/json" \
   -d '{"password": "admin123"}'
 
 # Get stats (with token)
-curl http://localhost:8190/shieldapi/stats \
+curl http://localhost:3190/shieldapi/stats \
   -H "Authorization: Bearer YOUR_TOKEN"
 
 # Clear cache
-curl -X POST http://localhost:8190/shieldapi/cache/clear \
+curl -X POST http://localhost:3190/shieldapi/cache/clear \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"pattern": "/products/*"}'
 
 # Get traffic metrics
-curl "http://localhost:8190/shieldapi/traffic/metrics?limit=10&isBot=true" \
+curl "http://localhost:3190/shieldapi/traffic/metrics?limit=10&isBot=true" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -689,7 +689,7 @@ curl "http://localhost:8190/shieldapi/traffic/metrics?limit=10&isBot=true" \
 ```javascript
 // Login and get token
 async function login(password) {
-  const response = await fetch('http://localhost:8190/shieldapi/auth/login', {
+  const response = await fetch('http://localhost:3190/shieldapi/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password })
@@ -700,7 +700,7 @@ async function login(password) {
 
 // Get stats
 async function getStats(token) {
-  const response = await fetch('http://localhost:8190/shieldapi/stats', {
+  const response = await fetch('http://localhost:3190/shieldapi/stats', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   return response.json();
@@ -708,7 +708,7 @@ async function getStats(token) {
 
 // Clear cache
 async function clearCache(token, pattern) {
-  const response = await fetch('http://localhost:8190/shieldapi/cache/clear', {
+  const response = await fetch('http://localhost:3190/shieldapi/cache/clear', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,

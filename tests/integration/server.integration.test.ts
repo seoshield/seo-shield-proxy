@@ -392,7 +392,7 @@ describe('sendTrafficEvent Function Simulation', () => {
 
     const trafficData = { path: '/test' };
 
-    await mockFetch('http://localhost:8190/shieldapi/traffic-events', {
+    await mockFetch('http://localhost:3190/shieldapi/traffic-events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(trafficData)
@@ -405,7 +405,7 @@ describe('sendTrafficEvent Function Simulation', () => {
     const mockFetch = vi.fn().mockRejectedValue(new Error('Connection refused'));
 
     try {
-      await mockFetch('http://localhost:8190/shieldapi/traffic-events', {
+      await mockFetch('http://localhost:3190/shieldapi/traffic-events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({})

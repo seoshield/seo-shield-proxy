@@ -2,7 +2,7 @@
 const API_CONFIG = {
   // Development environment
   development: {
-    baseURL: 'http://localhost:8190',
+    baseURL: 'http://localhost:3190',
     apiPath: '/shieldapi'
   },
   // Production environment

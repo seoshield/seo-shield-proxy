@@ -1152,13 +1152,13 @@ describe('Server Startup Logging', () => {
 
 describe('API Server URL Building', () => {
   it('should build API server URL', () => {
-    const apiPort = 8190;
+    const apiPort = 3190;
     const apiUrl = `http://localhost:${apiPort}`;
-    expect(apiUrl).toBe('http://localhost:8190');
+    expect(apiUrl).toBe('http://localhost:3190');
   });
 
   it('should use API server for traffic events', () => {
-    const apiPort = 8190;
+    const apiPort = 3190;
     const trafficEndpoint = `http://localhost:${apiPort}/shieldapi/traffic-events`;
     expect(trafficEndpoint).toContain('/shieldapi/traffic-events');
   });

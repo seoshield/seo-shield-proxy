@@ -143,7 +143,7 @@ vi.mock('../../src/config', () => ({
   default: {
     JWT_SECRET: 'test-secret',
     ADMIN_PASSWORD: 'test-password',
-    API_PORT: 8190
+    API_PORT: 3190
   }
 }));
 

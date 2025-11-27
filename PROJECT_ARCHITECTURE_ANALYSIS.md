@@ -86,7 +86,7 @@ app.use(compression({ threshold: 1024, level: 9 }));
 - **Transparent Proxy**: All other routes forwarded to target URL
 - No admin routes, no API endpoints, pure proxy functionality
 
-#### **Port 8190 - API Server**
+#### **Port 3190 - API Server**
 - **Admin API Routes**: `/shieldapi/*` - 70+ endpoints for management
 - **WebSocket Routes**: Real-time updates for admin dashboard
 - Multi-tier rate limiting and authentication
@@ -94,7 +94,7 @@ app.use(compression({ threshold: 1024, level: 9 }));
 #### **Port 3001 - Admin Dashboard**
 - **React SPA**: Single page application interface
 - **Static Assets**: Built frontend assets
-- **API Communication**: Connects to port 8190 for data
+- **API Communication**: Connects to port 3190 for data
 
 ---
 

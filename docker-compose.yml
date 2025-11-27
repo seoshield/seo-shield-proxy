@@ -93,10 +93,10 @@ services:
     container_name: seo-shield-api
     restart: unless-stopped
     ports:
-      - "${API_PORT:-8190}:8190"
+      - "${API_PORT:-3190}:3190"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - API_PORT=8190
+      - API_PORT=3190
       - REDIS_URL=redis://redis:6379
       - MONGODB_URL=mongodb://admin:admin123@mongodb:27017/seo_shield_proxy?authSource=admin
       - MONGODB_DB_NAME=seo_shield_proxy
@@ -112,7 +112,7 @@ services:
     volumes:
       - ./logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8190/shieldhealth"]
+      test: ["CMD", "curl", "-f", "http://localhost:3190/shieldhealth"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -129,7 +129,7 @@ services:
       - "${ADMIN_PORT:-3001}:3001"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
-      - VITE_API_URL=http://localhost:${API_PORT:-8190}/shieldapi
+      - VITE_API_URL=http://localhost:${API_PORT:-3190}/shieldapi
     depends_on:
       seo-api:
         condition: service_healthy

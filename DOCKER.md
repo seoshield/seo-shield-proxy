@@ -7,7 +7,7 @@ This guide covers complete Docker deployment of the SEO Shield Proxy system with
 The system consists of 5 main services:
 
 - **seo-proxy**: Main proxy server (port 8080) - Handles SSR and caching
-- **seo-api**: API server (port 8190) - Admin endpoints and WebSocket
+- **seo-api**: API server (port 3190) - Admin endpoints and WebSocket
 - **admin-dashboard**: React admin interface (port 3001)
 - **redis**: Cache storage (port 6379) - Persistent caching
 - **mongodb**: Database (port 27017) - Analytics, logs, configuration
@@ -105,7 +105,7 @@ TARGET_URL=https://your-spa-app.com
 
 # Ports (default values)
 PROXY_PORT=8080
-API_PORT=8190
+API_PORT=3190
 ADMIN_PORT=3001
 
 # Database
@@ -142,13 +142,13 @@ docker-compose ps
 curl http://localhost/shieldhealth
 
 # Database health check
-curl http://localhost:8190/shieldhealth
+curl http://localhost:3190/shieldhealth
 ```
 
 ### Health Check Endpoints
 
 - **Proxy Server**: `http://localhost:8080/shieldhealth`
-- **API Server**: `http://localhost:8190/shieldhealth`
+- **API Server**: `http://localhost:3190/shieldhealth`
 - **Admin Dashboard**: `http://localhost:3001`
 - **Nginx**: `http://localhost/shieldhealth`
 
@@ -341,14 +341,14 @@ npm run docker:build && npm run docker:up
 After deployment, services are available at:
 
 - **Main Proxy**: `http://localhost:8080`
-- **API Server**: `http://localhost:8190/shieldapi/*`
+- **API Server**: `http://localhost:3190/shieldapi/*`
 - **Admin Dashboard**: `http://localhost:3001`
 - **With Nginx**: `http://localhost/` (production)
 
 ### Service-Specific Endpoints
 
 - **Proxy Health**: `http://localhost:8080/shieldhealth`
-- **API Health**: `http://localhost:8190/shieldhealth`
+- **API Health**: `http://localhost:3190/shieldhealth`
 - **Admin Panel**: `http://localhost:3001/admin/`
 
 ## 🚀 Production Deployment Tips

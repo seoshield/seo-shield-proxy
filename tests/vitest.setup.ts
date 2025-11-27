@@ -1,7 +1,7 @@
 // Set test environment
 process.env.NODE_ENV = 'test';
 process.env.PORT = '8080';
-process.env.API_PORT = '8190';
+process.env.API_PORT = '3190';
 process.env.TARGET_URL = 'http://localhost:3000';
 process.env.CACHE_TYPE = 'memory';
 process.env.CACHE_TTL = '60';

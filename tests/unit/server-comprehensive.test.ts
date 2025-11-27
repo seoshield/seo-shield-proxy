@@ -6,7 +6,7 @@ vi.mock('../../src/config', () => ({
     TARGET_URL: 'https://example.com',
     PORT: 8080,
     CACHE_TTL: 3600,
-    API_PORT: 8190
+    API_PORT: 3190
   }
 }));
 
@@ -135,7 +135,7 @@ describe('Server Module', () => {
     it('should send traffic to API server', async () => {
       const sendTrafficEvent = async (trafficData: any) => {
         try {
-          const response = await fetch('http://localhost:8190/shieldapi/traffic-events', {
+          const response = await fetch('http://localhost:3190/shieldapi/traffic-events', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(trafficData),
@@ -154,7 +154,7 @@ describe('Server Module', () => {
       await sendTrafficEvent({ path: '/test' });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:8190/shieldapi/traffic-events',
+        'http://localhost:3190/shieldapi/traffic-events',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -172,7 +172,7 @@ describe('Server Module', () => {
 
       const sendTrafficEvent = async (trafficData: any) => {
         try {
-          const response = await fetch('http://localhost:8190/shieldapi/traffic-events', {
+          const response = await fetch('http://localhost:3190/shieldapi/traffic-events', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(trafficData),
@@ -200,7 +200,7 @@ describe('Server Module', () => {
 
       const sendTrafficEvent = async (trafficData: any) => {
         try {
-          await fetch('http://localhost:8190/shieldapi/traffic-events', {
+          await fetch('http://localhost:3190/shieldapi/traffic-events', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(trafficData),

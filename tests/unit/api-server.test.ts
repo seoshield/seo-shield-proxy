@@ -36,7 +36,7 @@ vi.mock('http', () => ({
 
 vi.mock('../../src/config', () => ({
   default: {
-    API_PORT: 8190,
+    API_PORT: 3190,
     PORT: 8080,
     TARGET_URL: 'http://localhost:3000',
     ADMIN_PASSWORD: 'test',
@@ -139,7 +139,7 @@ describe('API Server Health Check Endpoint', () => {
     const healthResponse = {
       status: 'ok',
       service: 'seo-shield-api',
-      port: 8190,
+      port: 3190,
       timestamp: new Date().toISOString(),
       database: 'connected',
       databaseStats: { collections: 5, documents: 100 }
@@ -298,10 +298,10 @@ describe('API Server Database Initialization', () => {
 
 describe('API Server Startup', () => {
   it('should start server on configured port', () => {
-    const PORT = 8190;
+    const PORT = 3190;
     const serverStarted = true;
 
-    expect(PORT).toBe(8190);
+    expect(PORT).toBe(3190);
     expect(serverStarted).toBe(true);
   });
 
@@ -318,7 +318,7 @@ describe('API Server Startup', () => {
 
   it('should log API endpoints on startup', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const PORT = 8190;
+    const PORT = 3190;
 
     console.log(`🚀 API Server running on port ${PORT}`);
     console.log('🎯 Admin API endpoints: /shieldapi/*');
@@ -331,7 +331,7 @@ describe('API Server Startup', () => {
 
   it('should start server in database fallback mode on error', () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const PORT = 8190;
+    const PORT = 3190;
 
     console.log(`🚀 API Server running on port ${PORT} (Database fallback mode)`);
 
@@ -393,7 +393,7 @@ describe('API Server HTTP Server Creation', () => {
 describe('API Server Config Integration', () => {
   it('should use API_PORT from config', async () => {
     const config = await import('../../src/config');
-    expect(config.default.API_PORT).toBe(8190);
+    expect(config.default.API_PORT).toBe(3190);
   });
 });
 
@@ -408,7 +408,7 @@ describe('Database Health Check Response', () => {
       }
     };
 
-    const PORT = 8190;
+    const PORT = 3190;
     const response = {
       status: 'ok',
       service: 'seo-shield-api',
@@ -420,7 +420,7 @@ describe('Database Health Check Response', () => {
 
     expect(response.status).toBe('ok');
     expect(response.service).toBe('seo-shield-api');
-    expect(response.port).toBe(8190);
+    expect(response.port).toBe(3190);
     expect(response.database).toBe('connected');
     expect(response.databaseStats).toBeDefined();
   });

@@ -54,7 +54,7 @@ The system uses **port-based microservice separation**:
 | Port | Service | Purpose |
 |------|---------|---------|
 | 8080 | Main Proxy | Pure reverse proxy with SSR for bots, only `/shieldhealth` endpoint |
-| 8190 | API Server | All admin APIs under `/shieldapi/*`, WebSocket support |
+| 3190 | API Server | All admin APIs under `/shieldapi/*`, WebSocket support |
 | 3001 | Dashboard | React admin interface |
 | 6379 | Redis | Cache storage (production) |
 | 27017 | MongoDB | Analytics and persistence |
@@ -76,7 +76,7 @@ Request → Bot Detection → [Bot? → SSR via Puppeteer → Cache] → Target 
 ### Core Source Files
 
 - `src/server.ts` - Main proxy server (port 8080)
-- `src/api-server.ts` - API server (port 8190)
+- `src/api-server.ts` - API server (port 3190)
 - `src/config.ts` - Configuration management with env validation
 - `src/browser.ts` - Puppeteer browser pool
 - `src/cache.ts` - Cache abstraction layer
@@ -117,7 +117,7 @@ Append query params for debugging:
 
 ## Development Notes
 
-- All admin logic must go through port 8190, never add routes to port 8080
+- All admin logic must go through port 3190, never add routes to port 8080
 - New features should be configurable via `config.ts` with env variable support
 - Use the cache abstraction (`CacheInterface`) for any caching needs
 - Puppeteer resource usage is significant - monitor `MAX_CONCURRENT_RENDERS`
