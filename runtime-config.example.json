@@ -1,0 +1,66 @@
+{
+  "adminPath": "/admin",
+  "adminAuth": {
+    "enabled": true,
+    "username": "admin",
+    "password": "your-secure-password"
+  },
+  "cacheRules": {
+    "noCachePatterns": [
+      "/admin/*",
+      "/api/*",
+      "/checkout",
+      "/cart"
+    ],
+    "cachePatterns": [
+      "/blog/*",
+      "/products/*"
+    ],
+    "cacheByDefault": true,
+    "metaTagName": "x-seo-shield-cache"
+  },
+  "botRules": {
+    "allowedBots": [
+      "Googlebot",
+      "Bingbot",
+      "Twitterbot",
+      "Facebookbot",
+      "LinkedInBot",
+      "Slackbot"
+    ],
+    "blockedBots": [],
+    "renderAllBots": true
+  },
+  "cacheTTL": 3600,
+  "maxCacheSize": 1000,
+  "seoProtocols": {
+    "contentHealthCheck": {
+      "enabled": true,
+      "criticalSelectors": ["title", "meta[name=\"description\"]", "h1", "body"],
+      "minBodyLength": 500,
+      "failOnMissingCritical": false
+    },
+    "virtualScroll": {
+      "enabled": true,
+      "scrollSteps": 10,
+      "scrollInterval": 300,
+      "maxScrollHeight": 10000,
+      "waitAfterScroll": 1000
+    },
+    "etagStrategy": {
+      "enabled": true,
+      "hashAlgorithm": "sha256",
+      "enable304Responses": true
+    },
+    "shadowDom": {
+      "enabled": true,
+      "deepSerialization": true
+    },
+    "circuitBreaker": {
+      "enabled": true,
+      "errorThreshold": 50,
+      "resetTimeout": 60000,
+      "fallbackToStale": true
+    }
+  }
+}

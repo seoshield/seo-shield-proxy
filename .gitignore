@@ -49,6 +49,10 @@ build/
 # Optional eslint cache
 .eslintcache
 
+# Runtime data files
+.ssr-events.json
+runtime-config.json
+
 # Misc
 .temp
 .tmp

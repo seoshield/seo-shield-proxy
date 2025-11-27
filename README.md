@@ -56,7 +56,7 @@ cd admin-dashboard && npm run dev  # Dashboard (3001)
 ### Option 3: Automated Script
 
 ```bash
-./start-all.sh
+./scripts/start-all.sh
 ```
 
 ## Configuration
@@ -91,6 +91,12 @@ PUPPETEER_TIMEOUT=30000
 # Cache Patterns
 NO_CACHE_PATTERNS=/checkout,/cart,/api/*
 CACHE_BY_DEFAULT=true
+```
+
+For advanced runtime configuration, copy the template:
+
+```bash
+cp runtime-config.example.json runtime-config.json
 ```
 
 ## Usage
@@ -153,20 +159,24 @@ Request → Bot Detection → [Bot?] → Yes → Cache Check → [Hit?] → Yes 
 
 ```text
 seo-shield-proxy/
-├── src/
-│   ├── server.ts              # Main proxy server
-│   ├── api-server.ts          # Admin API server
-│   ├── config.ts              # Configuration
-│   ├── browser.ts             # Puppeteer management
-│   ├── cache.ts               # Cache abstraction
-│   ├── admin/                 # Admin features
-│   ├── bot-detection/         # Bot detection
+├── src/                       # Source code
+│   ├── server.ts              # Main proxy server (port 8080)
+│   ├── api-server.ts          # Admin API server (port 3190)
+│   ├── config.ts              # Configuration management
+│   ├── browser.ts             # Puppeteer SSR engine
+│   ├── cache.ts               # Cache abstraction layer
+│   ├── admin/                 # Admin features & metrics
+│   ├── bot-detection/         # Bot detection engine
+│   ├── cache/                 # Cache implementations
 │   ├── storage/               # MongoDB storage
 │   └── database/              # Database management
-├── admin-dashboard/           # React admin UI
+├── admin-dashboard/           # React admin UI (port 3001)
 ├── docs/                      # Documentation
-├── docker/                    # Docker configs
-└── tests/                     # Test suite
+├── scripts/                   # Utility scripts
+├── docker/                    # Docker configurations
+├── tests/                     # Test suite
+├── .env.example               # Environment template
+└── runtime-config.example.json # Runtime config template
 ```
 
 ## Documentation
@@ -175,6 +185,7 @@ seo-shield-proxy/
 
 - [Configuration Reference](docs/configuration.md)
 - [Architecture Overview](docs/architecture.md)
+- [Docker Deployment](docs/docker.md)
 
 ### Core Features
 
@@ -191,9 +202,16 @@ seo-shield-proxy/
 ### Advanced
 
 - [SEO Protocols](docs/seo-protocols.md)
+- [Performance Optimization](docs/performance-optimization.md)
 - [Debug Mode](docs/debug-mode.md)
 - [Status Code Detection](docs/status-code-detection.md)
 - [MongoDB Integration](docs/mongodb.md)
+
+### Reference
+
+- [Deployment Checklist](docs/deployment-checklist.md)
+- [Architecture Analysis](docs/architecture-analysis.md)
+- [Project Overview](docs/project-overview.md)
 
 ## Commands
 
