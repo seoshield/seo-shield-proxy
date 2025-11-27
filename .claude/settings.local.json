@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /a \"d:\\Codebox\\PROJECTS\\seo-shield-proxy\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
