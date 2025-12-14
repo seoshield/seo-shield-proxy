@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { ETagManager, ETagComparison } from './etag-manager';
 import { SeoProtocolConfig } from '../config';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('ETagService');
 
 /**
  * ETag Service for Express middleware integration
@@ -18,6 +21,7 @@ export class ETagService {
    * Express middleware for ETag handling
    */
   middleware() {
+    // Arrow function preserves 'this' context from class
     return async (req: Request, res: Response, next: NextFunction) => {
       // Skip ETag handling if disabled
       if (!this.config.enabled) {
@@ -42,18 +46,33 @@ export class ETagService {
       const originalEnd = res.end.bind(res);
       let responseContent = '';
 
-      // Override res.write to capture content
-      res.write = function(chunk: any, encoding?: any) {
+      // Override res.write to capture content (cast needed for Express overloads)
+      const originalWrite = res.write.bind(res);
+      (res as { write: typeof res.write }).write = function (
+        chunk: unknown,
+        encodingOrCallback?: BufferEncoding | ((error: Error | null | undefined) => void),
+        callback?: (error: Error | null | undefined) => void
+      ): boolean {
         if (typeof chunk === 'string') {
           responseContent += chunk;
         } else if (Buffer.isBuffer(chunk)) {
           responseContent += chunk.toString();
         }
-        return true;
+        if (typeof encodingOrCallback === 'function') {
+          return originalWrite(chunk as string, encodingOrCallback);
+        }
+        if (encodingOrCallback) {
+          return originalWrite(chunk as string, encodingOrCallback, callback);
+        }
+        return originalWrite(chunk as string);
       };
 
-      // Override res.end to add ETag logic
-      res.end = function(chunk?: any, encoding?: any) {
+      // Override res.end to add ETag logic (cast needed for Express overloads)
+      (res as { end: typeof res.end }).end = (
+        chunk?: unknown,
+        encodingOrCallback?: BufferEncoding | (() => void),
+        callback?: () => void
+      ): Response => {
         if (chunk) {
           if (typeof chunk === 'string') {
             responseContent += chunk;
@@ -63,10 +82,16 @@ export class ETagService {
         }
 
         // Generate ETag and check if content has changed
-        etagService.processETag(req, res, responseContent, ifNoneMatch, ifModifiedSince);
+        this.processETag(req, res, responseContent, ifNoneMatch, ifModifiedSince);
 
         // Call original end with the content
-        return originalEnd(chunk, encoding);
+        if (typeof encodingOrCallback === 'function') {
+          return originalEnd(chunk, encodingOrCallback);
+        }
+        if (encodingOrCallback) {
+          return originalEnd(chunk, encodingOrCallback, callback);
+        }
+        return originalEnd(chunk);
       };
 
       // Continue to next middleware
@@ -114,9 +139,11 @@ export class ETagService {
 
       // Log ETag information for monitoring
       this.logETagInfo(req.url, comparison);
-
     } catch (error) {
-      console.warn(`⚠️  ETag processing error for ${req.url}:`, error instanceof Error ? error.message : error);
+      logger.warn(
+        `ETag processing error for ${req.url}:`,
+        error instanceof Error ? error.message : error
+      );
       // Don't fail the request if ETag processing has issues
     }
   }
@@ -124,7 +151,10 @@ export class ETagService {
   /**
    * Manual ETag generation for SSR content
    */
-  async generateETagForSSR(url: string, html: string): Promise<{
+  async generateETagForSSR(
+    url: string,
+    html: string
+  ): Promise<{
     etag: string;
     lastModified: string;
     cacheControl: string;
@@ -142,10 +172,7 @@ export class ETagService {
   /**
    * Check if content should be served from cache
    */
-  async shouldServeFromCache(
-    req: Request,
-    cachedHtml: string
-  ): Promise<boolean> {
+  async shouldServeFromCache(req: Request, cachedHtml: string): Promise<boolean> {
     if (!this.config.enabled || !this.config.enable304Responses) {
       return false;
     }
@@ -181,25 +208,27 @@ export class ETagService {
    * Log ETag information for monitoring and debugging
    */
   private logETagInfo(url: string, comparison: ETagComparison): void {
-    const status = comparison.notModified ? '🟢 304' : '🔵 200';
+    const status = comparison.notModified ? '304' : '200';
     const etagShort = comparison.etag ? comparison.etag.slice(0, 20) + '...' : 'none';
 
-    console.log(`${status} ETag: ${etagShort} for ${url}`);
+    logger.debug(`[${status}] ETag: ${etagShort} for ${url}`);
 
     if (comparison.changeType && comparison.changeType !== 'none') {
-      console.log(`   Content change: ${comparison.changeType.toUpperCase()}`);
+      logger.debug(`Content change: ${comparison.changeType.toUpperCase()}`);
 
       if (comparison.changeDetails) {
         const details = comparison.changeDetails;
-        console.log(`   Details: ${details.wordChanges} words, ${details.structuralChanges} structural elements`);
+        logger.debug(
+          `Details: ${details.wordChanges} words, ${details.structuralChanges} structural elements`
+        );
         if (details.newImages > 0 || details.removedImages > 0) {
-          console.log(`   Images: +${details.newImages} -${details.removedImages}`);
+          logger.debug(`Images: +${details.newImages} -${details.removedImages}`);
         }
       }
     }
 
     if (!comparison.cacheable) {
-      console.log(`   ⚠️  Content marked as non-cacheable`);
+      logger.warn(`Content marked as non-cacheable: ${url}`);
     }
   }
 

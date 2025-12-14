@@ -8,7 +8,7 @@ export async function up(db: Db): Promise<void> {
 
   // Create collections if they don't exist
   const collections = await db.listCollections().toArray();
-  const collectionNames = collections.map(c => c.name);
+  const collectionNames = collections.map((c) => c.name);
 
   // Traffic metrics collection
   if (!collectionNames.includes('traffic')) {
@@ -82,11 +82,26 @@ export async function down(db: Db): Promise<void> {
   console.log('Rolling back migration: 001-initial-setup');
 
   // Drop all collections (use with caution!)
-  await db.collection('traffic').drop().catch(() => {});
-  await db.collection('config_versions').drop().catch(() => {});
-  await db.collection('audit_logs').drop().catch(() => {});
-  await db.collection('error_logs').drop().catch(() => {});
-  await db.collection('bot_rules').drop().catch(() => {});
+  await db
+    .collection('traffic')
+    .drop()
+    .catch(() => {});
+  await db
+    .collection('config_versions')
+    .drop()
+    .catch(() => {});
+  await db
+    .collection('audit_logs')
+    .drop()
+    .catch(() => {});
+  await db
+    .collection('error_logs')
+    .drop()
+    .catch(() => {});
+  await db
+    .collection('bot_rules')
+    .drop()
+    .catch(() => {});
 
   console.log('Rollback 001-initial-setup completed');
 }

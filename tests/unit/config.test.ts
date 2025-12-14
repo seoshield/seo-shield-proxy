@@ -1,15 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mock dotenv to prevent loading .env file during tests
+vi.mock('dotenv', () => ({
+  default: {
+    config: vi.fn()
+  }
+}));
+
 // Store original env
 const originalEnv = { ...process.env };
 
 describe('Config Module', () => {
   beforeEach(() => {
-    // Reset env before each test
-    process.env = { ...originalEnv };
+    // Reset env before each test - start with minimal config for default value tests
+    vi.resetModules();
+    // Clear all config-related env vars first
+    delete process.env.PORT;
+    delete process.env.API_PORT;
+    delete process.env.CACHE_TYPE;
+    delete process.env.CACHE_TTL;
+    delete process.env.REDIS_URL;
+    // Set required values
     process.env.NODE_ENV = 'test';
     process.env.TARGET_URL = 'http://localhost:3000';
-    vi.resetModules();
   });
 
   afterAll(() => {

@@ -1,4 +1,6 @@
-import { SeoProtocolConfig } from '../config';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('CircuitBreaker');
 
 /**
  * Circuit breaker state
@@ -119,7 +121,10 @@ export class CircuitBreaker<T = any> {
       this.recordSuccess();
 
       // Check if we should close the circuit from half-open
-      if (this.state.state === 'HALF_OPEN' && this.state.successes >= this.config.successThreshold) {
+      if (
+        this.state.state === 'HALF_OPEN' &&
+        this.state.successes >= this.config.successThreshold
+      ) {
         this.transitionToClosed();
       }
 
@@ -131,7 +136,6 @@ export class CircuitBreaker<T = any> {
         executionTime,
         metrics: this.getMetrics(),
       };
-
     } catch (error) {
       const executionTime = Date.now() - startTime;
 
@@ -169,11 +173,11 @@ export class CircuitBreaker<T = any> {
       }, this.config.timeoutThreshold);
 
       operation()
-        .then(result => {
+        .then((result) => {
           clearTimeout(timeout);
           resolve(result);
         })
-        .catch(error => {
+        .catch((error) => {
           clearTimeout(timeout);
           reject(error);
         });
@@ -203,7 +207,9 @@ export class CircuitBreaker<T = any> {
       } catch (fallbackError) {
         return {
           success: false,
-          error: new Error(`Both operation and fallback failed: ${(fallbackError as Error).message}`),
+          error: new Error(
+            `Both operation and fallback failed: ${(fallbackError as Error).message}`
+          ),
           circuitState: this.state.state,
           fallbackUsed: true,
           executionTime,
@@ -245,7 +251,7 @@ export class CircuitBreaker<T = any> {
     this.state.lastFailureTime = new Date();
     this.updateRates();
 
-    console.warn(`⚡ Circuit Breaker recorded failure: ${error.message}`);
+    logger.warn(`Circuit Breaker recorded failure: ${error.message}`);
   }
 
   /**
@@ -297,7 +303,7 @@ export class CircuitBreaker<T = any> {
     this.state.nextRetryAt = null;
     this.halfOpenCalls = 0;
 
-    console.log(`🔓 Circuit Breaker transitioned from ${previousState} to CLOSED`);
+    logger.info(`Circuit Breaker transitioned from ${previousState} to CLOSED`);
   }
 
   /**
@@ -311,7 +317,9 @@ export class CircuitBreaker<T = any> {
     this.state.nextRetryAt = new Date(Date.now() + this.config.resetTimeout);
     this.halfOpenCalls = 0;
 
-    console.log(`🔒 Circuit Breaker transitioned from ${previousState} to OPEN (retry at ${this.state.nextRetryAt.toISOString()})`);
+    logger.warn(
+      `Circuit Breaker transitioned from ${previousState} to OPEN (retry at ${this.state.nextRetryAt.toISOString()})`
+    );
   }
 
   /**
@@ -324,7 +332,9 @@ export class CircuitBreaker<T = any> {
     this.state.stateChangedAt = new Date();
     this.halfOpenCalls = 0;
 
-    console.log(`🔓 Circuit Breaker transitioned from ${previousState} to HALF_OPEN (testing ${this.config.halfOpenMaxCalls} calls)`);
+    logger.info(
+      `Circuit Breaker transitioned from ${previousState} to HALF_OPEN (testing ${this.config.halfOpenMaxCalls} calls)`
+    );
   }
 
   /**
@@ -368,7 +378,7 @@ export class CircuitBreaker<T = any> {
   reset(): void {
     this.state = this.initializeState();
     this.halfOpenCalls = 0;
-    console.log('🔄 Circuit Breaker reset to initial state');
+    logger.info('Circuit Breaker reset to initial state');
   }
 
   /**

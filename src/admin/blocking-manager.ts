@@ -106,7 +106,7 @@ class BlockingManager {
    */
   private async saveRules(): Promise<void> {
     try {
-      const rulesArray = Array.from(this.rules.values()).map(rule => ({
+      const rulesArray = Array.from(this.rules.values()).map((rule) => ({
         ...rule,
         createdAt: rule.createdAt.toISOString(),
         updatedAt: rule.updatedAt.toISOString(),
@@ -127,11 +127,14 @@ class BlockingManager {
   /**
    * Check if a request should be blocked
    */
-  shouldBlockRequest(url: string, resourceType: string = 'other'): {
+  shouldBlockRequest(
+    url: string,
+    resourceType: string = 'other'
+  ): {
     blocked: boolean;
     rule?: BlockingRule;
     action?: string;
-    options?: any;
+    options?: BlockingRule['options'];
   } {
     const applicableRules = this.getApplicableRules(url, resourceType);
 
@@ -189,8 +192,10 @@ class BlockingManager {
     try {
       switch (rule.type) {
         case 'domain':
-          return new URL(url).hostname.includes(rule.pattern) ||
-                 new URL(url).hostname.endsWith(rule.pattern);
+          return (
+            new URL(url).hostname.includes(rule.pattern) ||
+            new URL(url).hostname.endsWith(rule.pattern)
+          );
 
         case 'url':
           return url.includes(rule.pattern) || this.matchesPattern(url, rule.pattern);
@@ -199,8 +204,7 @@ class BlockingManager {
           return new RegExp(rule.pattern).test(url);
 
         case 'resource':
-          return resourceType === rule.pattern ||
-                 this.matchesPattern(resourceType, rule.pattern);
+          return resourceType === rule.pattern || this.matchesPattern(resourceType, rule.pattern);
 
         default:
           return false;
@@ -219,9 +223,7 @@ class BlockingManager {
       return str === pattern;
     }
 
-    const regexPattern = pattern
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.');
+    const regexPattern = pattern.replace(/\*/g, '.*').replace(/\?/g, '.');
 
     return new RegExp(`^${regexPattern}$`).test(str);
   }
@@ -229,10 +231,12 @@ class BlockingManager {
   /**
    * Create a new blocking rule
    */
-  async createRule(ruleData: Omit<BlockingRule, 'id' | 'createdAt' | 'updatedAt' | 'stats'>): Promise<BlockingRule> {
+  async createRule(
+    ruleData: Omit<BlockingRule, 'id' | 'createdAt' | 'updatedAt' | 'stats'>
+  ): Promise<BlockingRule> {
     const rule: BlockingRule = {
       ...ruleData,
-      id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `block_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
       createdAt: new Date(),
       updatedAt: new Date(),
       stats: {
@@ -251,7 +255,10 @@ class BlockingManager {
   /**
    * Update an existing blocking rule
    */
-  async updateRule(id: string, updates: Partial<Omit<BlockingRule, 'id' | 'createdAt' | 'stats'>>): Promise<BlockingRule | null> {
+  async updateRule(
+    id: string,
+    updates: Partial<Omit<BlockingRule, 'id' | 'createdAt' | 'stats'>>
+  ): Promise<BlockingRule | null> {
     const existingRule = this.rules.get(id);
     if (!existingRule) return null;
 
@@ -318,7 +325,11 @@ class BlockingManager {
   /**
    * Test blocking rules on a URL
    */
-  async testBlocking(url: string, userAgent?: string, headers?: Record<string, string>): Promise<BlockingTest> {
+  async testBlocking(
+    url: string,
+    userAgent?: string,
+    headers?: Record<string, string>
+  ): Promise<BlockingTest> {
     const startTime = Date.now();
     const result = this.shouldBlockRequest(url);
     const responseTime = Date.now() - startTime;
@@ -390,7 +401,7 @@ class BlockingManager {
     // Sort top blocked
     topBlocked.sort((a, b) => b.count - a.count);
 
-    const enabledRules = rules.filter(r => r.enabled).length;
+    const enabledRules = rules.filter((r) => r.enabled).length;
     const topBlockedList = topBlocked.slice(0, 10);
 
     return {
@@ -459,7 +470,7 @@ class BlockingManager {
    * Export rules to JSON
    */
   exportRules(): string {
-    const rules = Array.from(this.rules.values()).map(rule => ({
+    const rules = Array.from(this.rules.values()).map((rule) => ({
       name: rule.name,
       description: rule.description,
       type: rule.type,
@@ -512,7 +523,8 @@ class BlockingManager {
         name: 'Block Analytics Scripts',
         description: 'Blocks common analytics and tracking scripts',
         type: 'pattern',
-        pattern: '.*google-analytics\\.com.*|.*googletagmanager\\.com.*|.*facebook\\.com/tr.*|.*doubleclick\\.net.*',
+        pattern:
+          '.*google-analytics\\.com.*|.*googletagmanager\\.com.*|.*facebook\\.com/tr.*|.*doubleclick\\.net.*',
         action: 'block',
         priority: 80,
       },
@@ -520,7 +532,8 @@ class BlockingManager {
         name: 'Block Ad Networks',
         description: 'Blocks major advertising networks',
         type: 'pattern',
-        pattern: '.*googlesyndication\\.com.*|.*googleadservices\\.com.*|.*adsystem\\.google\\.com.*',
+        pattern:
+          '.*googlesyndication\\.com.*|.*googleadservices\\.com.*|.*adsystem\\.google\\.com.*',
         action: 'block',
         priority: 75,
       },
@@ -528,7 +541,8 @@ class BlockingManager {
         name: 'Block Social Media Widgets',
         description: 'Blocks social media buttons and widgets',
         type: 'pattern',
-        pattern: '.*platform\\.twitter\\.com.*|.*connect\\.facebook\\.net.*|.*assets\\.pinterest\\.com.*',
+        pattern:
+          '.*platform\\.twitter\\.com.*|.*connect\\.facebook\\.net.*|.*assets\\.pinterest\\.com.*',
         action: 'block',
         priority: 70,
       },

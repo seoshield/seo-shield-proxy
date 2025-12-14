@@ -7,7 +7,6 @@ import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import metricsCollector from './metrics-collector';
 import cache from '../cache';
-import config from '../config';
 import { Logger } from '../utils/logger';
 
 const logger = new Logger('WebSocket');
@@ -49,7 +48,8 @@ export function initializeWebSocket(httpServer: HttpServer): Server {
   });
 
   // Store io instance globally for BrowserManager to access
-  (global as any).io = io;
+  // Type declaration in src/types/browser-globals.d.ts
+  globalThis.io = io;
 
   io.on('connection', (socket: Socket) => {
     logger.info(`Admin client connected: ${socket.id}`);

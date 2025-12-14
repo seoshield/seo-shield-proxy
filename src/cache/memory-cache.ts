@@ -1,6 +1,9 @@
 import { SimpleCache } from '../cache/simple-cache';
 import config from '../config';
 import { ICacheAdapter, CacheStats, CacheEntry } from './cache-interface';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('MemoryCache');
 
 /**
  * In-memory cache adapter using SimpleCache
@@ -13,7 +16,9 @@ export class MemoryCache implements ICacheAdapter {
   constructor() {
     this.cache = new SimpleCache(config.CACHE_TTL * 1000); // Convert to milliseconds
     this.ready = true;
-    console.log(`💾 Memory cache initialized with SimpleCache TTL: ${config.CACHE_TTL}s, max keys: 1000, SWR enabled`);
+    logger.info(
+      `Initialized with SimpleCache TTL: ${config.CACHE_TTL}s, max keys: 1000, SWR enabled`
+    );
   }
 
   get(key: string): string | undefined {
@@ -45,7 +50,7 @@ export class MemoryCache implements ICacheAdapter {
 
   flush(): void {
     this.cache.flush();
-    console.log('🗑️  Cache flushed');
+    logger.info('Cache flushed');
   }
 
   getStats(): CacheStats {
@@ -72,7 +77,7 @@ export class MemoryCache implements ICacheAdapter {
   async close(): Promise<void> {
     this.cache.flush();
     this.ready = false;
-    console.log('🔒 Memory cache closed');
+    logger.info('Memory cache closed');
   }
 
   // Async versions for compatibility with Redis

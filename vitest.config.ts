@@ -9,15 +9,21 @@ export default defineConfig({
     setupFiles: ['./tests/vitest.setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json', 'html', 'lcov'],
+      reportsDirectory: './coverage',
       include: ['src/**/*.ts'],
-      exclude: ['src/types/**', 'node_modules', 'dist'],
+      exclude: [
+        'src/types/**',
+        'node_modules',
+        'dist',
+        '**/*.d.ts'
+      ],
       thresholds: {
         global: {
-          branches: 10,
-          functions: 15,
-          lines: 15,
-          statements: 15
+          branches: 40,
+          functions: 50,
+          lines: 50,
+          statements: 50
         }
       }
     },

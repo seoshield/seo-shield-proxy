@@ -3,6 +3,10 @@
  * Collects and stores traffic metrics for admin dashboard
  */
 
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('MetricsCollector');
+
 export interface RequestData {
   path: string;
   userAgent: string;
@@ -78,7 +82,9 @@ class MetricsCollector {
 
     this.startTime = Date.now();
 
-    console.log(`📊 Metrics collector initialized (max log: ${this.maxLogSize}, max URLs: ${this.maxUrls})`);
+    logger.info(
+      `Metrics collector initialized (max log: ${this.maxLogSize}, max URLs: ${this.maxUrls})`
+    );
   }
 
   /**
@@ -146,7 +152,7 @@ class MetricsCollector {
         const oldestUrl = entries[0]?.[0];
         if (oldestUrl) {
           delete this.urlStats[oldestUrl];
-          console.log(`📊 URL stats limit reached (${this.maxUrls}), removed oldest: ${oldestUrl}`);
+          logger.debug(`URL stats limit reached (${this.maxUrls}), removed oldest: ${oldestUrl}`);
         }
       }
 

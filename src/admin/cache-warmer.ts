@@ -102,7 +102,8 @@ class CacheWarmer {
         const cached = cache.get(url);
         if (cached) {
           const cacheEntry = typeof cached === 'string' ? JSON.parse(cached) : cached;
-          if (cacheEntry.timestamp && Date.now() - cacheEntry.timestamp < 3600000) { // 1 hour
+          if (cacheEntry.timestamp && Date.now() - cacheEntry.timestamp < 3600000) {
+            // 1 hour
             skipped++;
             continue;
           }
@@ -141,7 +142,9 @@ class CacheWarmer {
       this.processQueue();
     }
 
-    this.logger.info(`Added ${added} URLs to warm queue (skipped: ${skipped}, duplicates: ${duplicates})`);
+    this.logger.info(
+      `Added ${added} URLs to warm queue (skipped: ${skipped}, duplicates: ${duplicates})`
+    );
 
     return { added, skipped, duplicates };
   }
@@ -168,27 +171,26 @@ class CacheWarmer {
 
       for (let i = 0; i < urls.length; i += batchSize) {
         const batch = urls.slice(i, i + batchSize);
-        const result = await this.addUrls(
-          batch,
-          priority,
-          'sitemap',
-          { sitemapUrl, batchSize }
-        );
+        const result = await this.addUrls(batch, priority, 'sitemap', { sitemapUrl, batchSize });
 
         totalAdded += result.added;
         totalSkipped += result.skipped;
 
         // Progress logging
         const progress = Math.min(i + batchSize, urls.length);
-        this.logger.info(`Batch ${Math.ceil(progress / batchSize)}/${Math.ceil(urls.length / batchSize)}: ${progress}/${urls.length} URLs processed`);
+        this.logger.info(
+          `Batch ${Math.ceil(progress / batchSize)}/${Math.ceil(urls.length / batchSize)}: ${progress}/${urls.length} URLs processed`
+        );
 
         // Delay between batches
         if (i + batchSize < urls.length && delayMs > 0) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       }
 
-      this.logger.info(`Bulk warm completed from sitemap: ${sitemapUrl} (added: ${totalAdded}, skipped: ${totalSkipped})`);
+      this.logger.info(
+        `Bulk warm completed from sitemap: ${sitemapUrl} (added: ${totalAdded}, skipped: ${totalSkipped})`
+      );
 
       return { total, added: totalAdded, skipped: totalSkipped };
     } catch (error) {
@@ -245,12 +247,14 @@ class CacheWarmer {
   private async processScheduledJobs(): Promise<void> {
     const now = new Date();
 
-    for (const [scheduleId, schedule] of this.schedules.entries()) {
+    for (const [_scheduleId, schedule] of this.schedules.entries()) {
       if (!schedule.isActive) continue;
 
       // Simple implementation - in production use proper cron parsing
       // For now, just run if it's been more than 1 hour since last run
-      const timeSinceLastRun = schedule.lastRun ? now.getTime() - schedule.lastRun.getTime() : Infinity;
+      const timeSinceLastRun = schedule.lastRun
+        ? now.getTime() - schedule.lastRun.getTime()
+        : Infinity;
       const oneHour = 3600000;
 
       if (timeSinceLastRun >= oneHour) {
@@ -272,7 +276,9 @@ class CacheWarmer {
           schedule.successRate = successRate;
           schedule.averageDuration = (schedule.averageDuration + duration) / 2;
 
-          this.logger.info(`Scheduled warm job completed: ${schedule.name} (${duration}ms, success: ${successRate.toFixed(1)}%)`);
+          this.logger.info(
+            `Scheduled warm job completed: ${schedule.name} (${duration}ms, success: ${successRate.toFixed(1)}%)`
+          );
         } catch (error) {
           this.logger.error(`Scheduled warm job failed: ${schedule.name}`, error);
         }
@@ -385,7 +391,9 @@ class CacheWarmer {
             this.stats.inProgress = 0;
             this.updateStats();
 
-            this.logger.warn(`Failed to warm URL after ${job.maxRetries} retries: ${job.url} - ${job.error}`);
+            this.logger.warn(
+              `Failed to warm URL after ${job.maxRetries} retries: ${job.url} - ${job.error}`
+            );
           } else {
             job.status = 'pending';
             // Reschedule with exponential backoff
@@ -399,7 +407,7 @@ class CacheWarmer {
         }
 
         // Small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     } finally {
       this.isProcessing = false;
@@ -448,12 +456,16 @@ class CacheWarmer {
   private updateStats(): void {
     const total = this.stats.total;
     const completed = this.stats.completed;
-    const failed = this.stats.failed;
+    const _failed = this.stats.failed;
 
-    this.stats.queued = Array.from(this.jobs.values()).filter(job => job.status === 'pending').length;
+    this.stats.queued = Array.from(this.jobs.values()).filter(
+      (job) => job.status === 'pending'
+    ).length;
     this.stats.successRate = total > 0 ? (completed / total) * 100 : 0;
     this.stats.averageRenderTime = completed > 0 ? this.stats.totalRenderTime / completed : 0;
-    this.stats.activeJobs = Array.from(this.jobs.values()).filter(job => job.status === 'processing');
+    this.stats.activeJobs = Array.from(this.jobs.values()).filter(
+      (job) => job.status === 'processing'
+    );
     this.stats.recentJobs = this.jobHistory.slice(0, 20); // Last 20 jobs
   }
 
@@ -565,7 +577,7 @@ class CacheWarmer {
    * Get estimated time to complete queue
    */
   getEstimatedTime(): number {
-    const pendingJobs = Array.from(this.jobs.values()).filter(job => job.status === 'pending');
+    const pendingJobs = Array.from(this.jobs.values()).filter((job) => job.status === 'pending');
     if (pendingJobs.length === 0) return 0;
 
     // Estimate: 3 seconds per URL on average
@@ -583,7 +595,10 @@ class CacheWarmer {
     topErrorMessages: Array<{ message: string; count: number }>;
   } {
     const recentJobs = this.jobHistory.slice(0, 100); // Last 100 jobs
-    const timeSpan = recentJobs.length > 0 ? (Date.now() - recentJobs[recentJobs.length - 1].completedAt!.getTime()) : 0;
+    const timeSpan =
+      recentJobs.length > 0
+        ? Date.now() - recentJobs[recentJobs.length - 1].completedAt!.getTime()
+        : 0;
     const hours = timeSpan / (1000 * 60 * 60);
 
     // Count error messages
@@ -611,12 +626,13 @@ class CacheWarmer {
   /**
    * Cleanup old history
    */
-  cleanupHistory(maxAge: number = 7 * 24 * 60 * 60 * 1000): void { // 7 days default
+  cleanupHistory(maxAge: number = 7 * 24 * 60 * 60 * 1000): void {
+    // 7 days default
     const cutoffTime = Date.now() - maxAge;
     const originalLength = this.jobHistory.length;
 
-    this.jobHistory = this.jobHistory.filter(job =>
-      job.completedAt && job.completedAt.getTime() > cutoffTime
+    this.jobHistory = this.jobHistory.filter(
+      (job) => job.completedAt && job.completedAt.getTime() > cutoffTime
     );
 
     const cleaned = originalLength - this.jobHistory.length;
@@ -642,8 +658,9 @@ class CacheWarmer {
 
     // Wait for processing to complete
     let attempts = 0;
-    while (this.isProcessing && attempts < 30) { // Wait up to 30 seconds
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    while (this.isProcessing && attempts < 30) {
+      // Wait up to 30 seconds
+      await new Promise((resolve) => setTimeout(resolve, 1000));
       attempts++;
     }
 

@@ -92,7 +92,7 @@ class HotfixEngine {
    */
   private async saveRules(): Promise<void> {
     try {
-      const rulesArray = Array.from(this.rules.values()).map(rule => ({
+      const rulesArray = Array.from(this.rules.values()).map((rule) => ({
         ...rule,
         createdAt: rule.createdAt.toISOString(),
         updatedAt: rule.updatedAt.toISOString(),
@@ -113,7 +113,11 @@ class HotfixEngine {
   /**
    * Apply hotfix rules to HTML content
    */
-  async applyHotfixes(html: string, url: string, headers: Record<string, string> = {}): Promise<HotfixResult> {
+  async applyHotfixes(
+    html: string,
+    url: string,
+    headers: Record<string, string> = {}
+  ): Promise<HotfixResult> {
     const startTime = Date.now();
     const result: HotfixResult = {
       applied: false,
@@ -245,7 +249,10 @@ class HotfixEngine {
         return { html: prependedHtml, changed };
 
       case 'append':
-        const appendRegex = new RegExp(`(<${selector}[^>]*>.*?</${selector}>)(?![^<]*</${selector}>)`, flags || 'is');
+        const appendRegex = new RegExp(
+          `(<${selector}[^>]*>.*?</${selector}>)(?![^<]*</${selector}>)`,
+          flags || 'is'
+        );
         const appendedHtml = html.replace(appendRegex, `$1${value || ''}`);
         changed = appendedHtml !== html;
         return { html: appendedHtml, changed };
@@ -296,7 +303,9 @@ class HotfixEngine {
   /**
    * Create a new hotfix rule
    */
-  async createRule(ruleData: Omit<HotfixRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<HotfixRule> {
+  async createRule(
+    ruleData: Omit<HotfixRule, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<HotfixRule> {
     const rule: HotfixRule = {
       ...ruleData,
       id: `hotfix_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -314,7 +323,10 @@ class HotfixEngine {
   /**
    * Update an existing hotfix rule
    */
-  async updateRule(id: string, updates: Partial<Omit<HotfixRule, 'id' | 'createdAt'>>): Promise<HotfixRule | null> {
+  async updateRule(
+    id: string,
+    updates: Partial<Omit<HotfixRule, 'id' | 'createdAt'>>
+  ): Promise<HotfixRule | null> {
     const existingRule = this.rules.get(id);
     if (!existingRule) return null;
 
@@ -443,9 +455,9 @@ class HotfixEngine {
 
     return {
       total: rules.length,
-      enabled: rules.filter(r => r.enabled).length,
-      disabled: rules.filter(r => !r.enabled).length,
-      expired: rules.filter(r => r.expiresAt && r.expiresAt < now).length,
+      enabled: rules.filter((r) => r.enabled).length,
+      disabled: rules.filter((r) => !r.enabled).length,
+      expired: rules.filter((r) => r.expiresAt && r.expiresAt < now).length,
     };
   }
 }

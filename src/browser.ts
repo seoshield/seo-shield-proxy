@@ -1,11 +1,38 @@
 import { Cluster } from 'puppeteer-cluster';
-import type { Page } from 'puppeteer';
+import type { Page, Browser, HTTPRequest } from 'puppeteer';
 import config from './config';
+import { Logger } from './utils/logger';
+
+const logger = new Logger('Browser');
 import forensicsCollector from './admin/forensics-collector';
 import blockingManager from './admin/blocking-manager';
-import { ContentHealthCheckManager, CriticalSelector } from './admin/content-health-check';
+import { ContentHealthCheckManager } from './admin/content-health-check';
 import { VirtualScrollManager } from './admin/virtual-scroll-manager';
 import { ssrEventsStore, SSREvent } from './admin/ssr-events-store';
+
+// Type for SSR event data passed to emitSSREvent
+interface SSREventData {
+  url?: string;
+  timestamp?: number;
+  duration?: number;
+  success?: boolean;
+  htmlLength?: number;
+  statusCode?: number;
+  error?: string;
+  queueSize?: number;
+  processing?: number;
+  renderId?: string;
+  score?: number;
+  passed?: boolean;
+  issues?: Array<{ type: string; message: string }>;
+}
+
+// Type for health check issue
+interface HealthCheckIssue {
+  type: 'error' | 'warning';
+  selector: string;
+  message: string;
+}
 
 /**
  * Render result containing HTML and optional HTTP status code
@@ -66,7 +93,9 @@ class BrowserManager {
   }
 
   private async initCluster(): Promise<Cluster<string, RenderResult>> {
-    console.log(`🚀 Initializing Puppeteer cluster with max ${config.MAX_CONCURRENT_RENDERS} concurrent renders...`);
+    logger.info(
+      `Initializing Puppeteer cluster with max ${config.MAX_CONCURRENT_RENDERS} concurrent renders...`
+    );
 
     // Initialize Content Health Check Manager
     this.initializeContentHealthCheck();
@@ -103,7 +132,8 @@ class BrowserManager {
           '--hide-scrollbars',
           '--metrics-recording-only',
           '--mute-audio',
-          ...(config.NODE_ENV === 'development' || process.env['PUPPETEER_SINGLE_PROCESS'] === 'true'
+          ...(config.NODE_ENV === 'development' ||
+          process.env['PUPPETEER_SINGLE_PROCESS'] === 'true'
             ? ['--single-process']
             : []),
         ],
@@ -128,7 +158,7 @@ class BrowserManager {
       }
     });
 
-    console.log(`✅ Cluster initialized with ${config.MAX_CONCURRENT_RENDERS} max concurrent renders`);
+    logger.info(`Cluster initialized with ${config.MAX_CONCURRENT_RENDERS} max concurrent renders`);
 
     return cluster;
   }
@@ -272,12 +302,14 @@ class BrowserManager {
       }
 
       // Block resource types that aren't needed for SEO
-      if (['image', 'stylesheet', 'font', 'media', 'websocket', 'eventsource'].includes(resourceType)) {
+      if (
+        ['image', 'stylesheet', 'font', 'media', 'websocket', 'eventsource'].includes(resourceType)
+      ) {
         return true;
       }
 
       return false;
-    } catch (error) {
+    } catch (_error) {
       // If URL parsing fails, allow the request
       return false;
     }
@@ -293,9 +325,14 @@ class BrowserManager {
       enabled: true,
       criticalSelectors: [
         { selector: 'title', type: 'title' as const, required: true, description: 'Page title' },
-        { selector: 'meta[name="description"]', type: 'meta' as const, required: true, description: 'Meta description' },
+        {
+          selector: 'meta[name="description"]',
+          type: 'meta' as const,
+          required: true,
+          description: 'Meta description',
+        },
         { selector: 'h1', type: 'h1' as const, required: true, description: 'H1 heading' },
-        { selector: 'body', type: 'custom' as const, required: true, description: 'Body content' }
+        { selector: 'body', type: 'custom' as const, required: true, description: 'Body content' },
       ],
       minBodyLength: 500,
       minTitleLength: 30,
@@ -305,7 +342,7 @@ class BrowserManager {
     };
 
     this.contentHealthCheck = new ContentHealthCheckManager(defaultConfig);
-    console.log('✅ Content Health Check Manager initialized with default configuration');
+    logger.info('Content Health Check Manager initialized with default configuration');
   }
 
   /**
@@ -314,7 +351,7 @@ class BrowserManager {
   private initializeVirtualScrollManager(): void {
     const defaultVirtualScrollConfig = VirtualScrollManager.getDefaultConfig();
     this.virtualScrollManager = new VirtualScrollManager(defaultVirtualScrollConfig);
-    console.log('✅ Virtual Scroll Manager initialized with default configuration');
+    logger.info('Virtual Scroll Manager initialized with default configuration');
   }
 
   private async renderPage(page: Page, url: string): Promise<RenderResult> {
@@ -349,13 +386,19 @@ class BrowserManager {
             if (blockingResult.action === 'redirect' && blockingResult.options?.redirectUrl) {
               // Note: redirect is not available in all Puppeteer versions, fallback to abort
               try {
-                (request as any).redirect?.({
+                const requestWithRedirect = request as HTTPRequest & {
+                  redirect?: (opts: { url: string }) => void;
+                };
+                requestWithRedirect.redirect?.({
                   url: blockingResult.options.redirectUrl,
                 });
               } catch {
                 request.abort();
               }
-            } else if (blockingResult.action === 'modify' && blockingResult.options?.modifyHeaders) {
+            } else if (
+              blockingResult.action === 'modify' &&
+              blockingResult.options?.modifyHeaders
+            ) {
               request.continue({
                 headers: { ...request.headers(), ...blockingResult.options.modifyHeaders },
               });
@@ -367,7 +410,7 @@ class BrowserManager {
             request.continue();
           }
         } catch (error) {
-          console.debug('Request interception error (ignoring):', (error as Error).message);
+          logger.debug('Request interception error (ignoring):', (error as Error).message);
           request.continue();
         }
       });
@@ -380,8 +423,8 @@ class BrowserManager {
           timeout: config.PUPPETEER_TIMEOUT,
         });
         html = await page.content();
-      } catch (navError) {
-        console.warn(`⚠️  networkidle0 failed, retrying with networkidle2`);
+      } catch (_navError) {
+        logger.warn('networkidle0 failed, retrying with networkidle2');
 
         try {
           await page.goto(url, {
@@ -389,140 +432,160 @@ class BrowserManager {
             timeout: config.PUPPETEER_TIMEOUT,
           });
           html = await page.content();
-        } catch (fallback2Error) {
-          console.warn(`⚠️  networkidle2 failed, using domcontentloaded`);
+        } catch (_fallback2Error) {
+          logger.warn('networkidle2 failed, using domcontentloaded');
           await page.goto(url, {
             waitUntil: 'domcontentloaded',
             timeout: config.PUPPETEER_TIMEOUT,
           });
           // Wait 2 seconds for any immediate JS to run
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise((resolve) => setTimeout(resolve, 2000));
           html = await page.content();
         }
       }
 
       // Enhanced Soft 404 Detection for Enterprise SEO
-      const soft404Analysis = await page.evaluate((): { statusCode?: number; isSoft404: boolean; reasons: string[] } => {
-        const reasons: string[] = [];
-        let statusCode: number | undefined;
+      const soft404Analysis = await page.evaluate(
+        (): { statusCode?: number; isSoft404: boolean; reasons: string[] } => {
+          const reasons: string[] = [];
+          let statusCode: number | undefined;
 
-        // Check explicit prerender-status-code meta tag
-        const metaTag = document.querySelector('meta[name="prerender-status-code"]');
-        if (metaTag) {
-          const content = metaTag.getAttribute('content');
-          if (content) {
-            const code = parseInt(content, 10);
-            if (!isNaN(code) && code >= 100 && code < 600) {
-              statusCode = code;
-              reasons.push(`Explicit meta tag: prerender-status-code=${code}`);
+          // Check explicit prerender-status-code meta tag
+          const metaTag = document.querySelector('meta[name="prerender-status-code"]');
+          if (metaTag) {
+            const content = metaTag.getAttribute('content');
+            if (content) {
+              const code = parseInt(content, 10);
+              if (!isNaN(code) && code >= 100 && code < 600) {
+                statusCode = code;
+                reasons.push(`Explicit meta tag: prerender-status-code=${code}`);
+              }
             }
           }
-        }
 
-        // Intelligent Soft 404 Detection based on content analysis
-        const title = document.title?.toLowerCase() || '';
-        const bodyText = document.body?.innerText?.toLowerCase() || '';
-        const h1Text = document.querySelector('h1')?.innerText?.toLowerCase() || '';
-        const h2Texts = Array.from(document.querySelectorAll('h2')).map(h => h.innerText?.toLowerCase() || '');
+          // Intelligent Soft 404 Detection based on content analysis
+          const title = document.title?.toLowerCase() || '';
+          const bodyText = document.body?.innerText?.toLowerCase() || '';
+          const h1Text = document.querySelector('h1')?.innerText?.toLowerCase() || '';
+          const h2Texts = Array.from(document.querySelectorAll('h2')).map(
+            (h) => h.innerText?.toLowerCase() || ''
+          );
 
-        // Check for 404 indicators in title
-        if (title.includes('404') || title.includes('not found') || title.includes('page not found')) {
-          reasons.push(`Title indicates 404: "${title}"`);
-        }
-
-        // Check for 404 indicators in main headings
-        if (h1Text.includes('404') || h1Text.includes('not found') || h1Text.includes('page not found')) {
-          reasons.push(`H1 indicates 404: "${h1Text}"`);
-        }
-
-        // Check H2s for 404 indicators
-        for (const h2Text of h2Texts) {
-          if (h2Text.includes('404') || h2Text.includes('not found') || h2Text.includes('page not found')) {
-            reasons.push(`H2 indicates 404: "${h2Text}"`);
-            break;
+          // Check for 404 indicators in title
+          if (
+            title.includes('404') ||
+            title.includes('not found') ||
+            title.includes('page not found')
+          ) {
+            reasons.push(`Title indicates 404: "${title}"`);
           }
-        }
 
-        // Check for common 404 patterns in body text
-        const notFoundPatterns = [
-          '404 - page not found',
-          '404 error',
-          'this page cannot be found',
-          'the page you are looking for',
-          'sorry, the page you',
-          'we couldn\'t find the page',
-          'no results found',
-          'nothing found',
-          'url not found',
-          'resource not found',
-          'content not available'
-        ];
-
-        for (const pattern of notFoundPatterns) {
-          if (bodyText.includes(pattern)) {
-            reasons.push(`Body text pattern: "${pattern}"`);
-            break;
+          // Check for 404 indicators in main headings
+          if (
+            h1Text.includes('404') ||
+            h1Text.includes('not found') ||
+            h1Text.includes('page not found')
+          ) {
+            reasons.push(`H1 indicates 404: "${h1Text}"`);
           }
-        }
 
-        // Check for minimal content (likely 404 pages have very little content)
-        const wordCount = bodyText.split(/\s+/).filter(word => word.length > 0).length;
-        if (wordCount < 50 && (title.includes('not found') || h1Text.includes('not found'))) {
-          reasons.push(`Minimal content (${wordCount} words) with 404 indicators`);
-        }
-
-        // Check for 404-specific CSS classes or IDs
-        const notFoundSelectors = [
-          '.error-404',
-          '#error-404',
-          '.not-found',
-          '#not-found',
-          '.page-not-found',
-          '#page-not-found',
-          '.error-page',
-          '#error-page',
-          '[class*="404"]',
-          '[id*="404"]',
-          '[class*="not-found"]',
-          '[id*="not-found"]'
-        ];
-
-        for (const selector of notFoundSelectors) {
-          if (document.querySelector(selector)) {
-            reasons.push(`404-specific selector found: ${selector}`);
-            break;
+          // Check H2s for 404 indicators
+          for (const h2Text of h2Texts) {
+            if (
+              h2Text.includes('404') ||
+              h2Text.includes('not found') ||
+              h2Text.includes('page not found')
+            ) {
+              reasons.push(`H2 indicates 404: "${h2Text}"`);
+              break;
+            }
           }
+
+          // Check for common 404 patterns in body text
+          const notFoundPatterns = [
+            '404 - page not found',
+            '404 error',
+            'this page cannot be found',
+            'the page you are looking for',
+            'sorry, the page you',
+            "we couldn't find the page",
+            'no results found',
+            'nothing found',
+            'url not found',
+            'resource not found',
+            'content not available',
+          ];
+
+          for (const pattern of notFoundPatterns) {
+            if (bodyText.includes(pattern)) {
+              reasons.push(`Body text pattern: "${pattern}"`);
+              break;
+            }
+          }
+
+          // Check for minimal content (likely 404 pages have very little content)
+          const wordCount = bodyText.split(/\s+/).filter((word) => word.length > 0).length;
+          if (wordCount < 50 && (title.includes('not found') || h1Text.includes('not found'))) {
+            reasons.push(`Minimal content (${wordCount} words) with 404 indicators`);
+          }
+
+          // Check for 404-specific CSS classes or IDs
+          const notFoundSelectors = [
+            '.error-404',
+            '#error-404',
+            '.not-found',
+            '#not-found',
+            '.page-not-found',
+            '#page-not-found',
+            '.error-page',
+            '#error-page',
+            '[class*="404"]',
+            '[id*="404"]',
+            '[class*="not-found"]',
+            '[id*="not-found"]',
+          ];
+
+          for (const selector of notFoundSelectors) {
+            if (document.querySelector(selector)) {
+              reasons.push(`404-specific selector found: ${selector}`);
+              break;
+            }
+          }
+
+          // Determine if this is a soft 404
+          const isSoft404 = reasons.length > 0 && !statusCode;
+
+          // If we detected a soft 404 but no explicit status code, set 404
+          if (isSoft404 && !statusCode) {
+            statusCode = 404;
+            reasons.push('Soft 404 detected - setting status code to 404');
+          }
+
+          return { statusCode, isSoft404, reasons };
         }
-
-        // Determine if this is a soft 404
-        const isSoft404 = reasons.length > 0 && !statusCode;
-
-        // If we detected a soft 404 but no explicit status code, set 404
-        if (isSoft404 && !statusCode) {
-          statusCode = 404;
-          reasons.push('Soft 404 detected - setting status code to 404');
-        }
-
-        return { statusCode, isSoft404, reasons };
-      });
+      );
 
       const { statusCode, isSoft404, reasons } = soft404Analysis;
 
       if (isSoft404) {
-        console.log(`🚨 Soft 404 detected! Reasons: ${reasons.join(', ')}`);
-        console.log(`📊 Setting HTTP status code to ${statusCode} for SEO compliance`);
+        logger.info(`Soft 404 detected! Reasons: ${reasons.join(', ')}`);
+        logger.info(`Setting HTTP status code to ${statusCode} for SEO compliance`);
       } else if (statusCode) {
-        console.log(`📊 Detected explicit prerender-status-code: ${statusCode}`);
+        logger.info(`Detected explicit prerender-status-code: ${statusCode}`);
       }
 
       // Log performance metrics
       const totalRequests = blockedCount + allowedCount;
       const blockRate = totalRequests > 0 ? Math.round((blockedCount / totalRequests) * 100) : 0;
 
-      console.log(`🚀 Network optimization: Blocked ${blockedCount}/${totalRequests} requests (${blockRate}%)`);
+      logger.info(
+        `Network optimization: Blocked ${blockedCount}/${totalRequests} requests (${blockRate}%)`
+      );
 
       if (blockedCount > 0) {
-        console.log(`⚡ Performance boost: ${blockedCount} unnecessary requests blocked to improve render speed`);
+        logger.debug(
+          `Performance boost: ${blockedCount} unnecessary requests blocked to improve render speed`
+        );
       }
 
       // Apply Virtual Scroll & Lazy Load triggering if enabled
@@ -531,14 +594,16 @@ class BrowserManager {
           const scrollResult = await this.virtualScrollManager.triggerVirtualScroll(page, url);
 
           if (scrollResult.success) {
-            console.log(`📜 Virtual Scroll completed: ${scrollResult.scrollSteps} steps, ${scrollResult.completionRate}% completion rate`);
+            logger.debug(
+              `Virtual Scroll completed: ${scrollResult.scrollSteps} steps, ${scrollResult.completionRate}% completion rate`
+            );
             // Update HTML after scrolling to capture new content
             html = await page.content();
           } else {
-            console.warn(`⚠️  Virtual Scroll encountered issues for ${url}`);
+            logger.warn(`Virtual Scroll encountered issues for ${url}`);
           }
         } catch (scrollError) {
-          console.warn(`⚠️  Virtual Scroll error for ${url}:`, (scrollError as Error).message);
+          logger.warn(`Virtual Scroll error for ${url}:`, (scrollError as Error).message);
           // Don't fail the entire render if virtual scroll has issues
         }
       }
@@ -554,49 +619,60 @@ class BrowserManager {
             score: healthResult.score,
             passed: healthResult.passed,
             issues: healthResult.issues,
-            timestamp: Date.now()
+            timestamp: Date.now(),
           });
 
           // Log health score for monitoring
-          console.log(`🏥 Content Health Score: ${healthResult.score}/100 for ${url}`);
+          logger.info(`Content Health Score: ${healthResult.score}/100 for ${url}`);
 
           // If health check fails and configured to fail on missing critical elements
           if (!healthResult.passed && this.contentHealthCheck.config?.failOnMissingCritical) {
-            const hasErrors = healthResult.issues.some((issue: any) => issue.type === 'error');
+            const hasErrors = healthResult.issues.some(
+              (issue: HealthCheckIssue) => issue.type === 'error'
+            );
             if (hasErrors) {
-              console.warn(`⚠️  Content Health Check failed for ${url} - returning 503 Service Unavailable`);
+              logger.warn(
+                `Content Health Check failed for ${url} - returning 503 Service Unavailable`
+              );
               return {
                 html: '<!DOCTYPE html><html><head><title>Service Unavailable</title><meta name="robots" content="noindex"></head><body><h1>503 Service Unavailable</h1><p>Content validation failed. Please try again later.</p></body></html>',
-                statusCode: 503
+                statusCode: 503,
               };
             }
           }
         } catch (healthError) {
-          console.warn(`⚠️  Content Health Check error for ${url}:`, (healthError as Error).message);
+          logger.warn(`Content Health Check error for ${url}:`, (healthError as Error).message);
           // Don't fail the entire render if health check has issues
         }
       }
 
       return { html, statusCode };
     } catch (error) {
-      console.error(`❌ Rendering failed for ${url}:`, (error as Error).message);
+      logger.error(`Rendering failed for ${url}:`, (error as Error).message);
       const renderError = error as Error & { url?: string; renderError?: boolean };
       renderError.url = url;
       renderError.renderError = true;
 
       // Capture forensics data for debugging
       try {
-        forensicsCollector.captureForensics(url, error as Error, {
-          userAgent: await page.evaluate('navigator.userAgent'),
-          viewport: page.viewport(),
-          headers: {},
-          waitStrategy: 'networkidle0',
-          timeout: config.PUPPETEER_TIMEOUT
-        }, page).catch((forensicsError: Error) => {
-          console.warn('⚠️  Failed to capture forensics data:', forensicsError.message);
-        });
+        forensicsCollector
+          .captureForensics(
+            url,
+            error as Error,
+            {
+              userAgent: await page.evaluate(() => navigator.userAgent) as string,
+              viewport: page.viewport() || undefined,
+              headers: {},
+              waitStrategy: 'networkidle0',
+              timeout: config.PUPPETEER_TIMEOUT,
+            },
+            page
+          )
+          .catch((forensicsError: Error) => {
+            logger.warn('Failed to capture forensics data:', forensicsError.message);
+          });
       } catch (forensicsError) {
-        console.warn('⚠️  Forensics collection error:', (forensicsError as Error).message);
+        logger.warn('Forensics collection error:', (forensicsError as Error).message);
       }
 
       throw renderError;
@@ -605,10 +681,12 @@ class BrowserManager {
 
   async render(url: string): Promise<RenderResult> {
     const renderStartTime = Date.now();
-    const renderId = `render_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const renderId = `render_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 
     this.metrics.queued++;
-    console.log(`📋 Queue: ${this.metrics.queued} queued, ${this.metrics.processing}/${this.metrics.maxConcurrency} processing`);
+    logger.debug(
+      `Queue: ${this.metrics.queued} queued, ${this.metrics.processing}/${this.metrics.maxConcurrency} processing`
+    );
 
     // Emit render start event to admin dashboard
     this.emitSSREvent('render_start', {
@@ -616,7 +694,7 @@ class BrowserManager {
       url,
       timestamp: renderStartTime,
       queueSize: this.metrics.queued,
-      processing: this.metrics.processing
+      processing: this.metrics.processing,
     });
 
     try {
@@ -627,7 +705,7 @@ class BrowserManager {
         result = await cluster.execute(url);
       } catch (clusterError) {
         // Fallback to direct browser if cluster fails
-        console.warn('⚠️ Cluster unavailable, using direct browser:', (clusterError as Error).message);
+        logger.warn('Cluster unavailable, using direct browser:', (clusterError as Error).message);
         const browser = await this.getBrowser();
         if (!browser) {
           throw new Error('Browser not available');
@@ -651,10 +729,10 @@ class BrowserManager {
         duration: renderDuration,
         success: true,
         htmlLength: result.html ? result.html.length : 0,
-        statusCode: result.statusCode || 200
+        statusCode: result.statusCode || 200,
       });
 
-      console.log(`✅ SSR completed in ${renderDuration}ms for ${url}`);
+      logger.info(`SSR completed in ${renderDuration}ms for ${url}`);
       return result;
     } catch (error) {
       this.metrics.queued = Math.max(0, this.metrics.queued - 1);
@@ -669,19 +747,19 @@ class BrowserManager {
         timestamp: Date.now(),
         duration: renderDuration,
         success: false,
-        error: (error as Error).message
+        error: (error as Error).message,
       });
 
-      console.error(`❌ SSR failed after ${renderDuration}ms for ${url}:`, (error as Error).message);
+      logger.error(`SSR failed after ${renderDuration}ms for ${url}:`, (error as Error).message);
       throw error;
     }
   }
 
-  private emitSSREvent(event: string, data: any) {
+  private emitSSREvent(event: string, data: SSREventData) {
     try {
       // Create SSR event object
       const ssrEvent: SSREvent = {
-        id: `${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        id: `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         event: event as SSREvent['event'],
         url: data.url || '',
         timestamp: data.timestamp || Date.now(),
@@ -695,15 +773,18 @@ class BrowserManager {
         renderId: data.renderId,
         score: data.score,
         passed: data.passed,
-        issues: data.issues
+        issues: data.issues,
       };
 
       // Store in memory (no file I/O - much faster)
       ssrEventsStore.addEvent(ssrEvent);
 
       // Broadcast via WebSocket for real-time updates
-      (global as any).io?.emit('ssr_event', ssrEvent);
-    } catch (e) {
+      const globalWithIO = global as typeof globalThis & {
+        io?: { emit: (event: string, data: SSREvent) => void };
+      };
+      globalWithIO.io?.emit('ssr_event', ssrEvent);
+    } catch (_e) {
       // Silently fail - don't let event logging break rendering
     }
   }
@@ -712,14 +793,14 @@ class BrowserManager {
     return { ...this.metrics };
   }
 
-  private directBrowser: any = null;
+  private directBrowser: Browser | null = null;
 
-  async getBrowser(): Promise<any> {
+  async getBrowser(): Promise<Browser> {
     // Use a simple direct browser instance that definitely has newPage()
     if (!this.directBrowser) {
       const puppeteer = await import('puppeteer');
 
-      console.log('🚀 Launching direct Puppeteer browser for SSR...');
+      logger.info('Launching direct Puppeteer browser for SSR...');
       this.directBrowser = await puppeteer.launch({
         headless: true,
         args: [
@@ -746,7 +827,7 @@ class BrowserManager {
         ],
       });
 
-      console.log('✅ Direct Puppeteer browser ready for SSR');
+      logger.info('Direct Puppeteer browser ready for SSR');
     }
 
     return this.directBrowser;
@@ -757,10 +838,10 @@ class BrowserManager {
     if (this.directBrowser) {
       try {
         await this.directBrowser.close();
-        console.log('🔒 Direct browser closed');
+        logger.info('Direct browser closed');
         this.directBrowser = null;
       } catch (error) {
-        console.error('⚠️  Error closing direct browser:', (error as Error).message);
+        logger.error('Error closing direct browser:', (error as Error).message);
       }
     }
 
@@ -769,9 +850,9 @@ class BrowserManager {
       try {
         await this.cluster.idle();
         await this.cluster.close();
-        console.log('🔒 Cluster closed');
+        logger.info('Cluster closed');
       } catch (error) {
-        console.error('⚠️  Error closing cluster:', (error as Error).message);
+        logger.error('Error closing cluster:', (error as Error).message);
       }
       this.cluster = null;
     }
@@ -781,13 +862,13 @@ class BrowserManager {
 const browserManager = new BrowserManager();
 
 process.on('SIGINT', async () => {
-  console.log('\n⚠️  Received SIGINT, shutting down gracefully...');
+  logger.warn('Received SIGINT, shutting down gracefully...');
   await browserManager.close();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\n⚠️  Received SIGTERM, shutting down gracefully...');
+  logger.warn('Received SIGTERM, shutting down gracefully...');
   await browserManager.close();
   process.exit(0);
 });

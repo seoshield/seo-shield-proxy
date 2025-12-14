@@ -22,11 +22,17 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS for admin dashboard - dynamic origin support for SSE/EventSource
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Use specific origin if provided (required for credentials), fallback to *
-  const origin = req.headers.origin || '*';
-  res.header('Access-Control-Allow-Origin', origin);
+  // Use specific origin if provided (required for credentials)
+  // Note: Cannot use '*' with credentials:true per CORS spec - omit header if no origin
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Last-Event-ID');
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Last-Event-ID'
+  );
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
 
@@ -49,7 +55,7 @@ app.get('/shieldhealth', async (req: Request, res: Response) => {
     port: PORT,
     timestamp: new Date().toISOString(),
     database: dbHealth.connected ? 'connected' : 'disconnected',
-    databaseStats: dbHealth.stats || null
+    databaseStats: dbHealth.stats || null,
   });
 });
 
@@ -58,17 +64,17 @@ app.use((req: Request, res: Response) => {
   res.status(404).json({
     error: 'Not Found',
     message: `Path ${req.path} not found on API server`,
-    availableEndpoints: ['/shieldhealth', '/shieldapi/*']
+    availableEndpoints: ['/shieldhealth', '/shieldapi/*'],
   });
 });
 
-// Error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+// Error handler - next parameter required by Express error middleware signature
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error('API Server Error:', err);
   res.status(500).json({
     success: false,
     error: 'Internal Server Error',
-    message: config.NODE_ENV === 'production' ? 'An error occurred' : err.message
+    message: config.NODE_ENV === 'production' ? 'An error occurred' : err.message,
   });
 });
 
@@ -109,16 +115,18 @@ function logServerStart(dbConnected: boolean): void {
 }
 
 // Initialize database before starting server
-initializeDatabase().then((dbConnected) => {
-  server.listen(PORT, '0.0.0.0', () => {
-    logServerStart(dbConnected);
+initializeDatabase()
+  .then((dbConnected) => {
+    server.listen(PORT, '0.0.0.0', () => {
+      logServerStart(dbConnected);
+    });
+  })
+  .catch((error) => {
+    logger.error('Failed to initialize database:', error);
+    // Still start server even if database fails
+    server.listen(PORT, '0.0.0.0', () => {
+      logServerStart(false);
+    });
   });
-}).catch((error) => {
-  logger.error('Failed to initialize database:', error);
-  // Still start server even if database fails
-  server.listen(PORT, '0.0.0.0', () => {
-    logServerStart(false);
-  });
-});
 
 export default app;

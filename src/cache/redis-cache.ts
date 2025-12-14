@@ -1,5 +1,8 @@
 import { createClient, RedisClientType } from 'redis';
 import { ICacheAdapter, CacheStats, CacheEntry } from './cache-interface';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('RedisCache');
 
 /**
  * Redis cache adapter
@@ -14,7 +17,7 @@ export class RedisCache implements ICacheAdapter {
   };
 
   constructor(redisUrl: string) {
-    console.log(`🔄 Connecting to Redis: ${redisUrl}`);
+    logger.info(`Connecting to Redis: ${redisUrl}`);
 
     this.client = createClient({
       url: redisUrl,
@@ -23,52 +26,52 @@ export class RedisCache implements ICacheAdapter {
         reconnectStrategy: (retries: number) => {
           if (retries > 3) return new Error('Max retries reached');
           return Math.min(retries * 100, 3000);
-        }
-      }
+        },
+      },
     });
 
     this.client.on('connect', () => {
-      console.log('🔄 Redis connecting...');
+      logger.info('Redis connecting...');
     });
 
     this.client.on('ready', () => {
       this.ready = true;
-      console.log(`✅ Redis cache connected`);
+      logger.info('Redis cache connected');
     });
 
     this.client.on('error', (error: Error) => {
-      console.error('❌ Redis connection error:', error.message);
+      logger.error('Redis connection error:', error.message);
       this.ready = false;
     });
 
     this.client.on('end', () => {
-      console.log('⚠️  Redis connection ended');
+      logger.warn('Redis connection ended');
       this.ready = false;
     });
 
     this.client.on('reconnecting', () => {
-      console.log('🔄 Redis reconnecting...');
+      logger.info('Redis reconnecting...');
     });
 
     // Connect immediately
     this.client.connect().catch((error) => {
-      console.error('❌ Failed to connect to Redis:', error);
+      logger.error('Failed to connect to Redis:', error);
     });
   }
 
   get(key: string): string | undefined {
     if (!this.ready) {
-      console.warn('⚠️  Redis not ready, returning undefined');
+      logger.warn('Redis not ready, returning undefined');
       return undefined;
     }
 
     try {
       // Synchronous get not available in ioredis, this method should be async
       // For compatibility with interface, we'll return undefined and log warning
-      console.warn('⚠️  RedisCache.get() is synchronous but Redis is async. Use getWithTTL() instead.');
+      logger.warn('RedisCache.get() is synchronous but Redis is async. Use getWithTTL() instead.');
       return undefined;
     } catch (error) {
-      console.error(`❌ Redis GET error for ${key}:`, (error as Error).message);
+      logger.error(`Redis GET error for ${key}:`, (error as Error).message);
       this.stats.misses++;
       return undefined;
     }
@@ -76,14 +79,14 @@ export class RedisCache implements ICacheAdapter {
 
   getWithTTL(_key: string): CacheEntry | undefined {
     if (!this.ready) {
-      console.warn('⚠️  Redis not ready, returning undefined');
+      logger.warn('Redis not ready, returning undefined');
       return undefined;
     }
 
     // Redis operations are async, but interface requires sync
     // We'll use a workaround with deasync or return cached promise result
     // For now, return undefined and recommend using getWithTTLAsync
-    console.warn('⚠️  RedisCache.getWithTTL() requires async. Use async methods instead.');
+    logger.warn('RedisCache.getWithTTL() requires async. Use async methods instead.');
     return undefined;
   }
 
@@ -92,19 +95,16 @@ export class RedisCache implements ICacheAdapter {
    */
   async getWithTTLAsync(key: string): Promise<CacheEntry | undefined> {
     if (!this.ready) {
-      console.warn('⚠️  Redis not ready');
+      logger.warn('Redis not ready');
       return undefined;
     }
 
     try {
       // Get value and TTL in parallel
-      const [value, ttl] = await Promise.all([
-        this.client.get(key),
-        this.client.ttl(key),
-      ]);
+      const [value, ttl] = await Promise.all([this.client.get(key), this.client.ttl(key)]);
 
       if (!value) {
-        console.log(`❌ Cache MISS: ${key}`);
+        logger.debug(`Cache MISS: ${key}`);
         this.stats.misses++;
         return undefined;
       }
@@ -116,9 +116,9 @@ export class RedisCache implements ICacheAdapter {
       const isStale = ttl <= 0;
 
       if (isStale) {
-        console.log(`⏰ Cache STALE: ${key} (expired)`);
+        logger.debug(`Cache STALE: ${key} (expired)`);
       } else {
-        console.log(`✅ Cache HIT: ${key} (TTL: ${remainingTTL}s)`);
+        logger.debug(`Cache HIT: ${key} (TTL: ${remainingTTL}s)`);
       }
 
       return {
@@ -127,7 +127,7 @@ export class RedisCache implements ICacheAdapter {
         isStale,
       };
     } catch (error) {
-      console.error(`❌ Redis GET error for ${key}:`, (error as Error).message);
+      logger.error(`Redis GET error for ${key}:`, (error as Error).message);
       this.stats.misses++;
       return undefined;
     }
@@ -138,22 +138,22 @@ export class RedisCache implements ICacheAdapter {
    */
   async getAsync(key: string): Promise<string | undefined> {
     if (!this.ready) {
-      console.warn('⚠️  Redis not ready');
+      logger.warn('Redis not ready');
       return undefined;
     }
 
     try {
       const value = await this.client.get(key);
       if (value) {
-        console.log(`✅ Cache HIT: ${key}`);
+        logger.debug(`Cache HIT: ${key}`);
         this.stats.hits++;
       } else {
-        console.log(`❌ Cache MISS: ${key}`);
+        logger.debug(`Cache MISS: ${key}`);
         this.stats.misses++;
       }
       return (value as string | null) ?? undefined;
     } catch (error) {
-      console.error(`❌ Redis GET error for ${key}:`, (error as Error).message);
+      logger.error(`Redis GET error for ${key}:`, (error as Error).message);
       this.stats.misses++;
       return undefined;
     }
@@ -161,28 +161,30 @@ export class RedisCache implements ICacheAdapter {
 
   set(key: string, value: string): boolean {
     if (!this.ready) {
-      console.warn('⚠️  Redis not ready');
+      logger.warn('Redis not ready');
       return false;
     }
 
     if (!key || typeof key !== 'string') {
-      console.error('⚠️  Invalid cache key:', key);
+      logger.error('Invalid cache key:', key);
       return false;
     }
 
     if (typeof value !== 'string') {
-      console.error('⚠️  Invalid cache value type for key:', key);
+      logger.error('Invalid cache value type for key:', key);
       return false;
     }
 
     if (value.length === 0) {
-      console.warn(`⚠️  Skipping cache for empty response: ${key}`);
+      logger.warn(`Skipping cache for empty response: ${key}`);
       return false;
     }
 
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (value.length > maxSize) {
-      console.warn(`⚠️  Response too large to cache (${(value.length / 1024 / 1024).toFixed(2)} MB): ${key}`);
+      logger.warn(
+        `Response too large to cache (${(value.length / 1024 / 1024).toFixed(2)} MB): ${key}`
+      );
       return false;
     }
 
@@ -196,7 +198,7 @@ export class RedisCache implements ICacheAdapter {
    */
   async setAsync(key: string, value: string, ttl?: number): Promise<boolean> {
     if (!this.ready) {
-      console.warn('⚠️  Redis not ready');
+      logger.warn('Redis not ready');
       return false;
     }
 
@@ -204,10 +206,10 @@ export class RedisCache implements ICacheAdapter {
       const cacheTtl = ttl || 3600; // Default 1 hour
       // Set with TTL (EX = seconds)
       await this.client.setEx(key, cacheTtl, value);
-      console.log(`💾 Cache SET: ${key} (${(value.length / 1024).toFixed(2)} KB, TTL: ${cacheTtl}s)`);
+      logger.debug(`Cache SET: ${key} (${(value.length / 1024).toFixed(2)} KB, TTL: ${cacheTtl}s)`);
       return true;
     } catch (error) {
-      console.error(`❌ Redis SET error for ${key}:`, (error as Error).message);
+      logger.error(`Redis SET error for ${key}:`, (error as Error).message);
       return false;
     }
   }
@@ -233,11 +235,11 @@ export class RedisCache implements ICacheAdapter {
     try {
       const result = await this.client.del(key);
       if (result > 0) {
-        console.log(`🗑️  Cache deleted: ${key}`);
+        logger.debug(`Cache deleted: ${key}`);
       }
       return result;
     } catch (error) {
-      console.error(`❌ Redis DEL error for ${key}:`, (error as Error).message);
+      logger.error(`Redis DEL error for ${key}:`, (error as Error).message);
       return 0;
     }
   }
@@ -261,9 +263,9 @@ export class RedisCache implements ICacheAdapter {
 
     try {
       await this.client.flushDb();
-      console.log('🗑️  Cache flushed');
+      logger.info('Cache flushed');
     } catch (error) {
-      console.error('❌ Redis FLUSH error:', (error as Error).message);
+      logger.error('Redis FLUSH error:', (error as Error).message);
     }
   }
 
@@ -308,7 +310,7 @@ export class RedisCache implements ICacheAdapter {
         vsize: 0, // Not available in Redis
       };
     } catch (error) {
-      console.error('❌ Redis STATS error:', (error as Error).message);
+      logger.error('Redis STATS error:', (error as Error).message);
       return {
         keys: 0,
         hits: this.stats.hits,
@@ -322,7 +324,7 @@ export class RedisCache implements ICacheAdapter {
   keys(): string[] {
     // Redis keys() is async, so we return empty array for sync interface
     // Use keysAsync() for actual implementation
-    console.warn('⚠️  RedisCache.keys() is synchronous but Redis is async. Returning empty array.');
+    logger.warn('RedisCache.keys() is synchronous but Redis is async. Returning empty array.');
     return [];
   }
 
@@ -337,7 +339,7 @@ export class RedisCache implements ICacheAdapter {
     try {
       return await this.client.keys('*');
     } catch (error) {
-      console.error('❌ Redis KEYS error:', (error as Error).message);
+      logger.error('Redis KEYS error:', (error as Error).message);
       return [];
     }
   }
@@ -345,7 +347,9 @@ export class RedisCache implements ICacheAdapter {
   getAllEntries(): Array<{ url: string; size: number; ttl: number }> {
     // Redis is async, so we return empty array for sync interface
     // Use getAllEntriesAsync() for actual implementation
-    console.warn('⚠️  RedisCache.getAllEntries() is synchronous but Redis is async. Returning empty array.');
+    logger.warn(
+      'RedisCache.getAllEntries() is synchronous but Redis is async. Returning empty array.'
+    );
     return [];
   }
 
@@ -361,10 +365,7 @@ export class RedisCache implements ICacheAdapter {
       const keys = await this.client.keys('*');
       const entries = await Promise.all(
         keys.map(async (key) => {
-          const [value, ttl] = await Promise.all([
-            this.client.get(key),
-            this.client.ttl(key),
-          ]);
+          const [value, ttl] = await Promise.all([this.client.get(key), this.client.ttl(key)]);
 
           return {
             url: key,
@@ -376,7 +377,7 @@ export class RedisCache implements ICacheAdapter {
 
       return entries;
     } catch (error) {
-      console.error('❌ Redis GET ALL ENTRIES error:', (error as Error).message);
+      logger.error('Redis GET ALL ENTRIES error:', (error as Error).message);
       return [];
     }
   }
@@ -389,7 +390,7 @@ export class RedisCache implements ICacheAdapter {
     if (this.client) {
       await this.client.quit();
       this.ready = false;
-      console.log('🔒 Redis cache closed');
+      logger.info('Redis cache closed');
     }
   }
 }

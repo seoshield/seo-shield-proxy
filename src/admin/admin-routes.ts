@@ -25,6 +25,19 @@ import config from '../config';
 import { Logger } from '../utils/logger';
 
 const logger = new Logger('AdminRoutes');
+
+// JWT Payload type
+interface JwtPayload {
+  role?: string;
+  username?: string;
+  iat?: number;
+  exp?: number;
+}
+
+// Extended request with user property
+interface AuthenticatedRequest extends Request {
+  user?: JwtPayload | string;
+}
 const router: Router = express.Router();
 
 // JWT Configuration - using centralized config
@@ -59,7 +72,7 @@ router.post('/auth/login', express.json(), (req: Request, res: Response) => {
     if (!password) {
       return res.status(400).json({
         success: false,
-        error: 'Password is required'
+        error: 'Password is required',
       });
     }
 
@@ -68,29 +81,27 @@ router.post('/auth/login', express.json(), (req: Request, res: Response) => {
       logger.warn('Login failed: Invalid password attempt');
       return res.status(401).json({
         success: false,
-        error: 'Invalid password'
+        error: 'Invalid password',
       });
     }
 
     // Generate JWT token
-    const token = jwt.sign(
-      { role: 'admin', timestamp: Date.now() },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRY }
-    );
+    const token = jwt.sign({ role: 'admin', timestamp: Date.now() }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRY,
+    });
 
     logger.info('Login successful');
     return res.json({
       success: true,
       message: 'Login successful',
       token,
-      expiresIn: JWT_EXPIRY
+      expiresIn: JWT_EXPIRY,
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Login error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Login system error'
+      error: 'Login system error',
     });
   }
 });
@@ -109,7 +120,7 @@ router.get('/auth/status', (req: Request, res: Response) => {
       return res.json({
         success: true,
         authenticated: true,
-        message: 'Authentication disabled'
+        message: 'Authentication disabled',
       });
     }
 
@@ -118,7 +129,7 @@ router.get('/auth/status', (req: Request, res: Response) => {
       return res.json({
         success: true,
         authenticated: false,
-        message: 'No authentication provided'
+        message: 'No authentication provided',
       });
     }
 
@@ -126,21 +137,20 @@ router.get('/auth/status', (req: Request, res: Response) => {
     if (authHeader.startsWith('Bearer ')) {
       const token = authHeader.slice(7);
       try {
-        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
         return res.json({
           success: true,
           authenticated: true,
           role: decoded.role || 'admin',
-          message: 'Authenticated via JWT'
+          message: 'Authenticated via JWT',
         });
       } catch (error) {
-        const errorMessage = error instanceof jwt.TokenExpiredError
-          ? 'Token expired'
-          : 'Invalid token';
+        const errorMessage =
+          error instanceof jwt.TokenExpiredError ? 'Token expired' : 'Invalid token';
         return res.json({
           success: true,
           authenticated: false,
-          message: errorMessage
+          message: errorMessage,
         });
       }
     }
@@ -152,38 +162,41 @@ router.get('/auth/status', (req: Request, res: Response) => {
         const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8');
         const [username, password] = credentials.split(':', 2);
 
-        // Check against config
+        // Check against config - use timing-safe comparison for security
         if (config?.adminAuth?.username && config?.adminAuth?.password) {
-          if (username === config.adminAuth.username && password === config.adminAuth.password) {
+          if (
+            safePasswordCompare(username, config.adminAuth.username) &&
+            safePasswordCompare(password, config.adminAuth.password)
+          ) {
             return res.json({
               success: true,
               authenticated: true,
               username: username,
-              message: 'Authenticated via Basic auth'
+              message: 'Authenticated via Basic auth',
             });
           }
         }
 
-        // Check against ADMIN_PASSWORD
-        if (password === ADMIN_PASSWORD) {
+        // Check against ADMIN_PASSWORD - use timing-safe comparison for security
+        if (safePasswordCompare(password, ADMIN_PASSWORD)) {
           return res.json({
             success: true,
             authenticated: true,
             username: username || 'admin',
-            message: 'Authenticated via Basic auth'
+            message: 'Authenticated via Basic auth',
           });
         }
 
         return res.json({
           success: true,
           authenticated: false,
-          message: 'Invalid credentials'
+          message: 'Invalid credentials',
         });
-      } catch (decodeError) {
+      } catch (_decodeError) {
         return res.json({
           success: true,
           authenticated: false,
-          message: 'Invalid authentication format'
+          message: 'Invalid authentication format',
         });
       }
     }
@@ -191,13 +204,13 @@ router.get('/auth/status', (req: Request, res: Response) => {
     return res.json({
       success: true,
       authenticated: false,
-      message: 'Unsupported authentication method'
+      message: 'Unsupported authentication method',
     });
   } catch (error) {
-    console.error('Auth status error:', error);
+    logger.error('Auth status error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Authentication system error'
+      error: 'Authentication system error',
     });
   }
 });
@@ -230,7 +243,7 @@ function optionalAuth(req: Request, res: Response, next: NextFunction): void | R
     'localhost',
     '0:0:0:0:0:0:0:1', // Full IPv6 localhost
   ];
-  const isLocalhost = localhostPatterns.some(pattern => ip.includes(pattern));
+  const isLocalhost = localhostPatterns.some((pattern) => ip.includes(pattern));
   if (isLocalhost) {
     return next();
   }
@@ -244,7 +257,7 @@ function optionalAuth(req: Request, res: Response, next: NextFunction): void | R
   // No auth in production from non-localhost - reject
   return res.status(401).json({
     success: false,
-    error: 'Authentication required for non-localhost requests'
+    error: 'Authentication required for non-localhost requests',
   });
 }
 
@@ -266,7 +279,7 @@ function authenticate(req: Request, res: Response, next: NextFunction): void | R
   if (!authHeader) {
     return res.status(401).json({
       success: false,
-      error: 'No authorization header provided'
+      error: 'No authorization header provided',
     });
   }
 
@@ -275,15 +288,14 @@ function authenticate(req: Request, res: Response, next: NextFunction): void | R
     const token = authHeader.slice(7);
     try {
       const decoded = jwt.verify(token, JWT_SECRET);
-      (req as any).user = decoded;
+      (req as AuthenticatedRequest).user = decoded;
       return next();
     } catch (error) {
-      const errorMessage = error instanceof jwt.TokenExpiredError
-        ? 'Token expired'
-        : 'Invalid token';
+      const errorMessage =
+        error instanceof jwt.TokenExpiredError ? 'Token expired' : 'Invalid token';
       return res.status(401).json({
         success: false,
-        error: errorMessage
+        error: errorMessage,
       });
     }
   }
@@ -296,8 +308,10 @@ function authenticate(req: Request, res: Response, next: NextFunction): void | R
       const [username, password] = credentials.split(':', 2);
 
       if (config?.adminAuth?.username && config?.adminAuth?.password) {
-        if (safePasswordCompare(username, config.adminAuth.username) &&
-            safePasswordCompare(password, config.adminAuth.password)) {
+        if (
+          safePasswordCompare(username, config.adminAuth.username) &&
+          safePasswordCompare(password, config.adminAuth.password)
+        ) {
           return next();
         }
       }
@@ -306,14 +320,14 @@ function authenticate(req: Request, res: Response, next: NextFunction): void | R
       if (safePasswordCompare(password, ADMIN_PASSWORD)) {
         return next();
       }
-    } catch (decodeError) {
+    } catch (_decodeError) {
       // Invalid format, fall through to error
     }
   }
 
   return res.status(401).json({
     success: false,
-    error: 'Invalid credentials'
+    error: 'Invalid credentials',
   });
 }
 
@@ -350,12 +364,12 @@ router.get('/traffic', optionalAuth, async (req: Request, res: Response) => {
       // Get traffic from MongoDB
       const trafficData = await mongoStorage.getTrafficMetrics(limit, {
         sortBy: 'timestamp',
-        sortOrder: -1
+        sortOrder: -1,
       });
 
       res.json({
         success: true,
-        data: trafficData.map(metric => ({
+        data: trafficData.map((metric) => ({
           timestamp: metric.timestamp,
           path: metric.path,
           method: metric.method,
@@ -377,10 +391,10 @@ router.get('/traffic', optionalAuth, async (req: Request, res: Response) => {
       });
     }
   } catch (error) {
-    console.error('Traffic API error:', error);
+    logger.error('Traffic API error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch traffic data'
+      error: 'Failed to fetch traffic data',
     });
   }
 });
@@ -432,60 +446,64 @@ router.get('/cache/analytics', optionalAuth, (_req: Request, res: Response) => {
     const cacheStats = cache.getStats();
 
     // Calculate analytics with real data from cache entries
-    const entries = cacheData.map((entry) => {
-      const now = Date.now();
-      const remaining = Math.max(0, entry.ttl);
+    const entries = cacheData
+      .map((entry) => {
+        const now = Date.now();
+        const remaining = Math.max(0, entry.ttl);
 
-      // Try to parse metadata from cached content
-      let metadata = {
-        renderTime: 0,
-        statusCode: 200,
-        timestamp: now - (entry.ttl > 0 ? entry.ttl : 3600000)
-      };
+        // Try to parse metadata from cached content
+        const metadata = {
+          renderTime: 0,
+          statusCode: 200,
+          timestamp: now - (entry.ttl > 0 ? entry.ttl : 3600000),
+        };
 
-      try {
-        // Cache stores JSON with { content, renderTime, statusCode }
-        const cachedValue = cache.get(entry.url);
-        if (cachedValue) {
-          const parsed = JSON.parse(cachedValue);
-          metadata.renderTime = parsed.renderTime || 0;
-          metadata.statusCode = parsed.statusCode || 200;
-          // renderTime field stores the timestamp when it was cached
-          if (parsed.renderTime && parsed.renderTime > 1000000000000) {
-            metadata.timestamp = parsed.renderTime;
+        try {
+          // Cache stores JSON with { content, renderTime, statusCode }
+          const cachedValue = cache.get(entry.url);
+          if (cachedValue) {
+            const parsed = JSON.parse(cachedValue);
+            metadata.renderTime = parsed.renderTime || 0;
+            metadata.statusCode = parsed.statusCode || 200;
+            // renderTime field stores the timestamp when it was cached
+            if (parsed.renderTime && parsed.renderTime > 1000000000000) {
+              metadata.timestamp = parsed.renderTime;
+            }
           }
+        } catch (_e) {
+          // Parsing failed, use defaults
         }
-      } catch (e) {
-        // Parsing failed, use defaults
-      }
 
-      const cacheAge = now - metadata.timestamp;
+        const cacheAge = now - metadata.timestamp;
 
-      return {
-        url: entry.url,
-        timestamp: metadata.timestamp,
-        size: entry.size,
-        ttl: entry.ttl,
-        cacheAge: Math.round(cacheAge / 1000), // seconds
-        renderTime: metadata.renderTime > 1000000000000 ? 0 : metadata.renderTime, // If it's a timestamp, show 0
-        statusCode: metadata.statusCode,
-        userAgent: 'SEO Shield Proxy',
-        cacheKey: entry.url,
-        isStale: remaining <= 0,
-        cacheStatus: remaining > 0 ? 'HIT' : 'STALE'
-      };
-    }).sort((a, b) => b.timestamp - a.timestamp);
+        return {
+          url: entry.url,
+          timestamp: metadata.timestamp,
+          size: entry.size,
+          ttl: entry.ttl,
+          cacheAge: Math.round(cacheAge / 1000), // seconds
+          renderTime: metadata.renderTime > 1000000000000 ? 0 : metadata.renderTime, // If it's a timestamp, show 0
+          statusCode: metadata.statusCode,
+          userAgent: 'SEO Shield Proxy',
+          cacheKey: entry.url,
+          isStale: remaining <= 0,
+          cacheStatus: remaining > 0 ? 'HIT' : 'STALE',
+        };
+      })
+      .sort((a, b) => b.timestamp - a.timestamp);
 
     const totalSize = entries.reduce((sum, entry) => sum + entry.size, 0);
     const avgSize = entries.length > 0 ? totalSize / entries.length : 0;
-    const avgTtl = entries.length > 0 ? entries.reduce((sum, entry) => sum + entry.ttl, 0) / entries.length : 0;
+    const avgTtl =
+      entries.length > 0 ? entries.reduce((sum, entry) => sum + entry.ttl, 0) / entries.length : 0;
 
-    const staleCount = entries.filter(entry => entry.isStale).length;
+    const staleCount = entries.filter((entry) => entry.isStale).length;
     const freshCount = entries.length - staleCount;
 
-    const hitRate = cacheStats.hits + cacheStats.misses > 0
-      ? (cacheStats.hits / (cacheStats.hits + cacheStats.misses)) * 100
-      : 0;
+    const hitRate =
+      cacheStats.hits + cacheStats.misses > 0
+        ? (cacheStats.hits / (cacheStats.hits + cacheStats.misses)) * 100
+        : 0;
 
     const stats = {
       totalEntries: entries.length,
@@ -496,24 +514,49 @@ router.get('/cache/analytics', optionalAuth, (_req: Request, res: Response) => {
       totalMisses: cacheStats.misses,
       avgTtl,
       avgSize,
-      oldestEntry: entries.length > 0 ? Date.now() - Math.min(...entries.map(e => e.timestamp)) : 0,
-      newestEntry: entries.length > 0 ? Date.now() - Math.max(...entries.map(e => e.timestamp)) : 0,
+      oldestEntry:
+        entries.length > 0 ? Date.now() - Math.min(...entries.map((e) => e.timestamp)) : 0,
+      newestEntry:
+        entries.length > 0 ? Date.now() - Math.max(...entries.map((e) => e.timestamp)) : 0,
       staleCount,
       freshCount,
-      entriesBySize: entries.reduce((acc, entry) => {
-        const sizeRange = entry.size < 1024 ? '<1KB' : entry.size < 10240 ? '<10KB' : entry.size < 102400 ? '<100KB' : '>100KB';
-        const existing = acc.find(item => item.size === sizeRange) || { size: sizeRange, count: 0 };
-        existing.count++;
-        if (!acc.find(item => item.size === sizeRange)) acc.push(existing);
-        return acc;
-      }, [] as Array<{ size: string; count: number }>),
-      entriesByTtl: entries.reduce((acc, entry) => {
-        const ttlRange = entry.ttl < 300000 ? '<5m' : entry.ttl < 1800000 ? '<30m' : entry.ttl < 3600000 ? '<1h' : '>1h';
-        const existing = acc.find(item => item.ttl === ttlRange) || { ttl: ttlRange, count: 0 };
-        existing.count++;
-        if (!acc.find(item => item.ttl === ttlRange)) acc.push(existing);
-        return acc;
-      }, [] as Array<{ ttl: string; count: number }>)
+      entriesBySize: entries.reduce(
+        (acc, entry) => {
+          const sizeRange =
+            entry.size < 1024
+              ? '<1KB'
+              : entry.size < 10240
+                ? '<10KB'
+                : entry.size < 102400
+                  ? '<100KB'
+                  : '>100KB';
+          const existing = acc.find((item) => item.size === sizeRange) || {
+            size: sizeRange,
+            count: 0,
+          };
+          existing.count++;
+          if (!acc.find((item) => item.size === sizeRange)) acc.push(existing);
+          return acc;
+        },
+        [] as Array<{ size: string; count: number }>
+      ),
+      entriesByTtl: entries.reduce(
+        (acc, entry) => {
+          const ttlRange =
+            entry.ttl < 300000
+              ? '<5m'
+              : entry.ttl < 1800000
+                ? '<30m'
+                : entry.ttl < 3600000
+                  ? '<1h'
+                  : '>1h';
+          const existing = acc.find((item) => item.ttl === ttlRange) || { ttl: ttlRange, count: 0 };
+          existing.count++;
+          if (!acc.find((item) => item.ttl === ttlRange)) acc.push(existing);
+          return acc;
+        },
+        [] as Array<{ ttl: string; count: number }>
+      ),
     };
 
     res.json({
@@ -522,7 +565,7 @@ router.get('/cache/analytics', optionalAuth, (_req: Request, res: Response) => {
       stats,
     });
   } catch (error) {
-    console.error('Cache analytics error:', error);
+    logger.error('Cache analytics error:', error);
     res.status(500).json({
       success: false,
       error: (error as Error).message,
@@ -574,7 +617,9 @@ router.post('/cache/refresh', authenticate, express.json(), (req: Request, res: 
     const deleted = cache.delete(cacheKey);
     res.json({
       success: true,
-      message: deleted ? 'Cache entry refreshed - will be re-cached on next request' : 'Cache entry not found',
+      message: deleted
+        ? 'Cache entry refreshed - will be re-cached on next request'
+        : 'Cache entry not found',
       deleted,
     });
   } catch (error) {
@@ -643,11 +688,11 @@ router.get('/config', async (req: Request, res: Response) => {
           return res.json({
             success: true,
             data: mongoConfig,
-            source: 'database'
+            source: 'database',
           });
         }
       } catch (dbError) {
-        console.warn('Failed to load config from database, using file config:', dbError);
+        logger.warn('Failed to load config from database, using file config:', dbError);
       }
     }
 
@@ -656,13 +701,13 @@ router.get('/config', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: config,
-      source: 'file'
+      source: 'file',
     });
   } catch (error) {
-    console.error('Config GET error:', error);
+    logger.error('Config GET error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to get configuration'
+      error: 'Failed to get configuration',
     });
   }
 });
@@ -684,7 +729,7 @@ router.post('/config', authenticate, express.json(), async (req: Request, res: R
         try {
           await configManager.updateConfig(updates);
         } catch (fileError) {
-          console.warn('Failed to update file config, but database update succeeded:', fileError);
+          logger.warn('Failed to update file config, but database update succeeded:', fileError);
         }
 
         return res.json({
@@ -694,7 +739,7 @@ router.post('/config', authenticate, express.json(), async (req: Request, res: R
           data: updates,
         });
       } catch (dbError) {
-        console.warn('Failed to save config to database, falling back to file config:', dbError);
+        logger.warn('Failed to save config to database, falling back to file config:', dbError);
       }
     }
 
@@ -706,7 +751,7 @@ router.post('/config', authenticate, express.json(), async (req: Request, res: R
       data: newConfig,
     });
   } catch (error) {
-    console.error('Config POST error:', error);
+    logger.error('Config POST error:', error);
     res.status(500).json({
       success: false,
       error: (error as Error).message,
@@ -887,12 +932,14 @@ router.get('/stream', (req: Request, res: Response) => {
   res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
   // Send initial connection event
-  res.write(`data: ${JSON.stringify({
-    type: 'connection',
-    status: 'connected',
-    timestamp: Date.now(),
-    message: 'Real-time stream connected'
-  })}\n\n`);
+  res.write(
+    `data: ${JSON.stringify({
+      type: 'connection',
+      status: 'connected',
+      timestamp: Date.now(),
+      message: 'Real-time stream connected',
+    })}\n\n`
+  );
 
   // Send stats every 2 seconds
   const interval = setInterval(() => {
@@ -924,7 +971,10 @@ router.options('/stream/auth', (_req: Request, res: Response) => {
   const origin = _req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Last-Event-ID, Authorization');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Cache-Control, Last-Event-ID, Authorization'
+  );
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
   res.sendStatus(204);
@@ -935,7 +985,10 @@ router.get('/stream/auth', authenticate, (req: Request, res: Response) => {
   const origin = req.headers.origin || '*';
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Last-Event-ID, Authorization');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Cache-Control, Last-Event-ID, Authorization'
+  );
 
   // SSE-specific headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -953,7 +1006,7 @@ router.get('/stream/auth', authenticate, (req: Request, res: Response) => {
       metrics: stats,
       cache: cacheStats,
       timestamp: Date.now(),
-      user: (req as any).user || 'admin',
+      user: (req as AuthenticatedRequest).user || 'admin',
     };
 
     res.write(`data: ${JSON.stringify(data)}\n\n`);
@@ -1014,43 +1067,48 @@ router.post('/warmer/add', authenticate, express.json(), async (req: Request, re
 /**
  * API: Parse and add sitemap URLs
  */
-router.post('/warmer/sitemap', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { sitemapUrl, priority = 'normal' } = req.body;
+router.post(
+  '/warmer/sitemap',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { sitemapUrl, priority = 'normal' } = req.body;
 
-    if (!sitemapUrl) {
-      return res.status(400).json({
-        success: false,
-        error: 'Sitemap URL is required',
-      });
-    }
+      if (!sitemapUrl) {
+        return res.status(400).json({
+          success: false,
+          error: 'Sitemap URL is required',
+        });
+      }
 
-    // Parse sitemap
-    const urls = await cacheWarmer.parseSitemap(sitemapUrl);
+      // Parse sitemap
+      const urls = await cacheWarmer.parseSitemap(sitemapUrl);
 
-    if (urls.length === 0) {
-      return res.json({
+      if (urls.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No URLs found in sitemap',
+          data: { urls: [], added: 0 },
+        });
+      }
+
+      // Add URLs to warmer
+      const added = await cacheWarmer.addUrls(urls, priority);
+
+      res.json({
         success: true,
-        message: 'No URLs found in sitemap',
-        data: { urls: [], added: 0 },
+        message: `Parsed ${urls.length} URLs from sitemap and added ${added} to warm queue`,
+        data: { urls, added, total: urls.length },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
       });
     }
-
-    // Add URLs to warmer
-    const added = await cacheWarmer.addUrls(urls, priority);
-
-    res.json({
-      success: true,
-      message: `Parsed ${urls.length} URLs from sitemap and added ${added} to warm queue`,
-      data: { urls, added, total: urls.length },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
 
 /**
  * API: Clear cache warmer queue
@@ -1082,7 +1140,10 @@ router.post('/warmer/warm', authenticate, express.json(), async (req: Request, r
 
     res.json({
       success: true,
-      message: result.added > 0 ? `URL added to high priority warm queue` : `URL is already cached or in queue`,
+      message:
+        result.added > 0
+          ? `URL added to high priority warm queue`
+          : `URL is already cached or in queue`,
       data: result,
     });
   } catch (error) {
@@ -1096,30 +1157,35 @@ router.post('/warmer/warm', authenticate, express.json(), async (req: Request, r
 /**
  * API: Capture snapshot
  */
-router.post('/snapshots/capture', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { url, options = {} } = req.body;
+router.post(
+  '/snapshots/capture',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { url, options = {} } = req.body;
 
-    if (!url) {
-      return res.status(400).json({
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          error: 'URL is required',
+        });
+      }
+
+      const snapshot = await snapshotService.captureSnapshot(url, options);
+
+      res.json({
+        success: true,
+        data: snapshot,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        error: 'URL is required',
+        error: (error as Error).message,
       });
     }
-
-    const snapshot = await snapshotService.captureSnapshot(url, options);
-
-    res.json({
-      success: true,
-      data: snapshot,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
 
 /**
  * API: Get snapshot by ID
@@ -1195,30 +1261,35 @@ router.get('/snapshots/history/:url', optionalAuth, async (req: Request, res: Re
 /**
  * API: Compare snapshots
  */
-router.post('/snapshots/compare', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { beforeId, afterId } = req.body;
+router.post(
+  '/snapshots/compare',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { beforeId, afterId } = req.body;
 
-    if (!beforeId || !afterId) {
-      return res.status(400).json({
+      if (!beforeId || !afterId) {
+        return res.status(400).json({
+          success: false,
+          error: 'Both beforeId and afterId are required',
+        });
+      }
+
+      const diff = await snapshotService.compareSnapshots(beforeId, afterId);
+
+      res.json({
+        success: true,
+        data: diff,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        error: 'Both beforeId and afterId are required',
+        error: (error as Error).message,
       });
     }
-
-    const diff = await snapshotService.compareSnapshots(beforeId, afterId);
-
-    res.json({
-      success: true,
-      data: diff,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
 
 /**
  * API: Get diff result by ID
@@ -1339,32 +1410,37 @@ router.post('/hotfix/rules', authenticate, express.json(), async (req: Request, 
 /**
  * API: Update hotfix rule
  */
-router.put('/hotfix/rules/:id', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
+router.put(
+  '/hotfix/rules/:id',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
 
-    const rule = await hotfixEngine.updateRule(id, updates);
+      const rule = await hotfixEngine.updateRule(id, updates);
 
-    if (!rule) {
-      return res.status(404).json({
+      if (!rule) {
+        return res.status(404).json({
+          success: false,
+          error: 'Hotfix rule not found',
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Hotfix rule updated',
+        data: rule,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        error: 'Hotfix rule not found',
+        error: (error as Error).message,
       });
     }
-
-    res.json({
-      success: true,
-      message: 'Hotfix rule updated',
-      data: rule,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
 
 /**
  * API: Delete hotfix rule
@@ -1576,23 +1652,28 @@ router.delete('/forensics/errors/:id', authenticate, async (req: Request, res: R
 /**
  * API: Clear old errors
  */
-router.post('/forensics/cleanup', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { daysToKeep = 30 } = req.body;
-    const deleted = await forensicsCollector.clearOldErrors(daysToKeep);
+router.post(
+  '/forensics/cleanup',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { daysToKeep = 30 } = req.body;
+      const deleted = await forensicsCollector.clearOldErrors(daysToKeep);
 
-    res.json({
-      success: true,
-      message: `Cleared ${deleted} old errors`,
-      data: { deleted },
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
+      res.json({
+        success: true,
+        message: `Cleared ${deleted} old errors`,
+        data: { deleted },
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+      });
+    }
   }
-});
+);
 
 /**
  * API: Get blocking rules
@@ -1635,32 +1716,37 @@ router.get('/blocking/stats', optionalAuth, (_req: Request, res: Response) => {
 /**
  * API: Create blocking rule
  */
-router.post('/blocking/rules', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const ruleData = req.body;
+router.post(
+  '/blocking/rules',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const ruleData = req.body;
 
-    // Basic validation
-    if (!ruleData.name || !ruleData.pattern) {
-      return res.status(400).json({
+      // Basic validation
+      if (!ruleData.name || !ruleData.pattern) {
+        return res.status(400).json({
+          success: false,
+          error: 'Name and pattern are required',
+        });
+      }
+
+      const rule = await blockingManager.createRule(ruleData);
+
+      res.json({
+        success: true,
+        message: 'Blocking rule created',
+        data: rule,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        error: 'Name and pattern are required',
+        error: (error as Error).message,
       });
     }
-
-    const rule = await blockingManager.createRule(ruleData);
-
-    res.json({
-      success: true,
-      message: 'Blocking rule created',
-      data: rule,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
 
 /**
  * API: Test blocking rule
@@ -1693,24 +1779,29 @@ router.post('/blocking/test', authenticate, express.json(), async (req: Request,
 /**
  * API: Update blocking rule
  */
-router.put('/blocking/rules/:id', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
+router.put(
+  '/blocking/rules/:id',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
 
-    const rule = await blockingManager.updateRule(id, updates);
+      const rule = await blockingManager.updateRule(id, updates);
 
-    res.json({
-      success: true,
-      data: rule,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
+      res.json({
+        success: true,
+        data: rule,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+      });
+    }
   }
-});
+);
 
 /**
  * API: Delete blocking rule
@@ -1804,39 +1895,44 @@ router.get('/simulate/user-agents', optionalAuth, (_req: Request, res: Response)
 /**
  * API: Start simulation
  */
-router.post('/simulate/start', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { url, userAgentId, options = {} } = req.body;
+router.post(
+  '/simulate/start',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { url, userAgentId, options = {} } = req.body;
 
-    if (!url || !userAgentId) {
-      return res.status(400).json({
+      if (!url || !userAgentId) {
+        return res.status(400).json({
+          success: false,
+          error: 'URL and user agent ID are required',
+        });
+      }
+
+      const userAgentTemplate = uaSimulator.getUserAgent(userAgentId);
+      if (!userAgentTemplate) {
+        return res.status(404).json({
+          success: false,
+          error: 'User agent not found',
+        });
+      }
+
+      const simulation = await uaSimulator.startSimulation(url, userAgentTemplate, options);
+
+      res.json({
+        success: true,
+        message: 'Simulation started',
+        data: simulation,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        error: 'URL and user agent ID are required',
+        error: (error as Error).message,
       });
     }
-
-    const userAgentTemplate = uaSimulator.getUserAgent(userAgentId);
-    if (!userAgentTemplate) {
-      return res.status(404).json({
-        success: false,
-        error: 'User agent not found',
-      });
-    }
-
-    const simulation = await uaSimulator.startSimulation(url, userAgentTemplate, options);
-
-    res.json({
-      success: true,
-      message: 'Simulation started',
-      data: simulation,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
 
 /**
  * API: Get simulation history
@@ -1899,47 +1995,52 @@ router.get('/simulate/stats', optionalAuth, (_req: Request, res: Response) => {
 /**
  * API: Compare simulations
  */
-router.post('/simulate/compare', authenticate, express.json(), async (req: Request, res: Response) => {
-  try {
-    const { simulationId1, simulationId2 } = req.body;
+router.post(
+  '/simulate/compare',
+  authenticate,
+  express.json(),
+  async (req: Request, res: Response) => {
+    try {
+      const { simulationId1, simulationId2 } = req.body;
 
-    if (!simulationId1 || !simulationId2) {
-      return res.status(400).json({
+      if (!simulationId1 || !simulationId2) {
+        return res.status(400).json({
+          success: false,
+          error: 'Both simulation IDs are required',
+        });
+      }
+
+      const sim1 = uaSimulator.getSimulation(simulationId1);
+      const sim2 = uaSimulator.getSimulation(simulationId2);
+
+      if (!sim1 || !sim2) {
+        return res.status(404).json({
+          success: false,
+          error: 'One or both simulations not found',
+        });
+      }
+
+      if (sim1.status !== 'completed' || sim2.status !== 'completed') {
+        return res.status(400).json({
+          success: false,
+          error: 'Both simulations must be completed to compare',
+        });
+      }
+
+      const comparison = await uaSimulator.compareSimulations(sim1, sim2);
+
+      res.json({
+        success: true,
+        data: comparison,
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
-        error: 'Both simulation IDs are required',
+        error: (error as Error).message,
       });
     }
-
-    const sim1 = uaSimulator.getSimulation(simulationId1);
-    const sim2 = uaSimulator.getSimulation(simulationId2);
-
-    if (!sim1 || !sim2) {
-      return res.status(404).json({
-        success: false,
-        error: 'One or both simulations not found',
-      });
-    }
-
-    if (sim1.status !== 'completed' || sim2.status !== 'completed') {
-      return res.status(400).json({
-        success: false,
-        error: 'Both simulations must be completed to compare',
-      });
-    }
-
-    const comparison = await uaSimulator.compareSimulations(sim1, sim2);
-
-    res.json({
-      success: true,
-      data: comparison,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
 
 /**
  * API: Get simulation by ID
@@ -2006,7 +2107,7 @@ router.get('/ssr/events', optionalAuth, (req: Request, res: Response) => {
       stats,
     });
   } catch (error) {
-    console.error('SSR events error:', error);
+    logger.error('SSR events error:', error);
     res.status(500).json({
       success: false,
       error: (error as Error).message,
@@ -2039,125 +2140,133 @@ router.get('/seo-protocols/status', optionalAuth, async (_req: Request, res: Res
 /**
  * API: Toggle SEO protocol
  */
-router.post('/seo-protocols/:protocolName/toggle', authenticate, async (req: Request, res: Response) => {
-  try {
-    const { protocolName } = req.params;
-    const service = getSEOProtocolsService();
-    const currentConfig = service.getConfig();
+router.post(
+  '/seo-protocols/:protocolName/toggle',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const { protocolName } = req.params;
+      const service = getSEOProtocolsService();
+      const currentConfig = service.getConfig();
 
-    // Map protocol names to config keys
-    const protocolMap: Record<string, string> = {
-      'contentHealthCheck': 'contentHealthCheck',
-      'virtualScroll': 'virtualScroll',
-      'etagStrategy': 'etagStrategy',
-      'clusterMode': 'clusterMode',
-      'shadowDom': 'shadowDom',
-      'circuitBreaker': 'circuitBreaker'
-    };
+      // Map protocol names to config keys
+      const protocolMap: Record<string, string> = {
+        contentHealthCheck: 'contentHealthCheck',
+        virtualScroll: 'virtualScroll',
+        etagStrategy: 'etagStrategy',
+        clusterMode: 'clusterMode',
+        shadowDom: 'shadowDom',
+        circuitBreaker: 'circuitBreaker',
+      };
 
-    const configKey = protocolMap[protocolName];
-    if (!configKey) {
-      return res.status(404).json({
-        success: false,
-        error: `Protocol '${protocolName}' not found`,
-      });
-    }
-
-    // Toggle the enabled state
-    const protocolConfig = (currentConfig as any)[configKey];
-    if (protocolConfig) {
-      protocolConfig.enabled = !protocolConfig.enabled;
-      service.updateConfig({ [configKey]: protocolConfig } as any);
-    }
-
-    res.json({
-      success: true,
-      message: `Protocol '${protocolName}' toggled`,
-      enabled: protocolConfig?.enabled,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
-  }
-});
-
-/**
- * API: Run SEO protocol
- */
-router.post('/seo-protocols/:protocolName/run', authenticate, async (req: Request, res: Response) => {
-  try {
-    const { protocolName } = req.params;
-    const service = getSEOProtocolsService();
-
-    // Get the appropriate manager based on protocol name
-    let result: any = null;
-
-    switch (protocolName) {
-      case 'contentHealthCheck':
-        const healthCheck = service.getContentHealthCheck();
-        if (healthCheck) {
-          result = { status: 'active', message: 'Content Health Check is running' };
-        }
-        break;
-      case 'virtualScroll':
-        const virtualScroll = service.getVirtualScrollManager();
-        if (virtualScroll) {
-          result = { status: 'active', message: 'Virtual Scroll Manager is running' };
-        }
-        break;
-      case 'etagStrategy':
-        const etag = service.getETagService();
-        if (etag) {
-          result = { status: 'active', stats: etag.getCacheStats() };
-        }
-        break;
-      case 'clusterMode':
-        const cluster = service.getClusterManager();
-        if (cluster) {
-          result = { status: 'active', stats: await cluster.getStats() };
-        }
-        break;
-      case 'shadowDom':
-        const shadowDom = service.getShadowDOMExtractor();
-        if (shadowDom) {
-          result = { status: 'active', message: 'Shadow DOM Extractor is running' };
-        }
-        break;
-      case 'circuitBreaker':
-        const circuitBreaker = service.getCircuitBreakerManager();
-        if (circuitBreaker) {
-          result = { status: 'active', health: circuitBreaker.getOverallHealth() };
-        }
-        break;
-      default:
+      const configKey = protocolMap[protocolName];
+      if (!configKey) {
         return res.status(404).json({
           success: false,
           error: `Protocol '${protocolName}' not found`,
         });
-    }
+      }
 
-    if (!result) {
-      return res.json({
+      // Toggle the enabled state
+      const protocolConfig = (currentConfig as unknown as Record<string, { enabled: boolean }>)[configKey];
+      if (protocolConfig) {
+        protocolConfig.enabled = !protocolConfig.enabled;
+        service.updateConfig({ [configKey]: protocolConfig } as unknown as Partial<typeof currentConfig>);
+      }
+
+      res.json({
         success: true,
-        message: `Protocol '${protocolName}' is not enabled or not initialized`,
-        result: null,
+        message: `Protocol '${protocolName}' toggled`,
+        enabled: protocolConfig?.enabled,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
       });
     }
-
-    res.json({
-      success: true,
-      message: `Protocol '${protocolName}' executed`,
-      result,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: (error as Error).message,
-    });
   }
-});
+);
+
+/**
+ * API: Run SEO protocol
+ */
+router.post(
+  '/seo-protocols/:protocolName/run',
+  authenticate,
+  async (req: Request, res: Response) => {
+    try {
+      const { protocolName } = req.params;
+      const service = getSEOProtocolsService();
+
+      // Get the appropriate manager based on protocol name
+      let result: { status: string; message?: string; stats?: unknown; health?: unknown } | null = null;
+
+      switch (protocolName) {
+        case 'contentHealthCheck':
+          const healthCheck = service.getContentHealthCheck();
+          if (healthCheck) {
+            result = { status: 'active', message: 'Content Health Check is running' };
+          }
+          break;
+        case 'virtualScroll':
+          const virtualScroll = service.getVirtualScrollManager();
+          if (virtualScroll) {
+            result = { status: 'active', message: 'Virtual Scroll Manager is running' };
+          }
+          break;
+        case 'etagStrategy':
+          const etag = service.getETagService();
+          if (etag) {
+            result = { status: 'active', stats: etag.getCacheStats() };
+          }
+          break;
+        case 'clusterMode':
+          const cluster = service.getClusterManager();
+          if (cluster) {
+            result = { status: 'active', stats: await cluster.getStats() };
+          }
+          break;
+        case 'shadowDom':
+          const shadowDom = service.getShadowDOMExtractor();
+          if (shadowDom) {
+            result = { status: 'active', message: 'Shadow DOM Extractor is running' };
+          }
+          break;
+        case 'circuitBreaker':
+          const circuitBreaker = service.getCircuitBreakerManager();
+          if (circuitBreaker) {
+            result = { status: 'active', health: circuitBreaker.getOverallHealth() };
+          }
+          break;
+        default:
+          return res.status(404).json({
+            success: false,
+            error: `Protocol '${protocolName}' not found`,
+          });
+      }
+
+      if (!result) {
+        return res.json({
+          success: true,
+          message: `Protocol '${protocolName}' is not enabled or not initialized`,
+          result: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Protocol '${protocolName}' executed`,
+        result,
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+      });
+    }
+  }
+);
 
 /**
  * API: Receive traffic events from proxy server
@@ -2176,7 +2285,7 @@ router.post('/traffic-events', express.json(), (req: Request, res: Response) => 
         cacheStatus: trafficData.cacheStatus || null,
         rule: trafficData.rule,
         cached: trafficData.cached,
-        error: trafficData.error
+        error: trafficData.error,
       };
 
       metricsCollector.recordRequest(requestData);
@@ -2187,10 +2296,10 @@ router.post('/traffic-events', express.json(), (req: Request, res: Response) => 
 
     res.json({
       success: true,
-      message: 'Traffic event recorded and broadcasted'
+      message: 'Traffic event recorded and broadcasted',
     });
   } catch (error) {
-    console.error('❌ Failed to process traffic event:', error);
+    logger.error('Failed to process traffic event:', error);
     res.status(500).json({
       success: false,
       error: (error as Error).message,
@@ -2214,7 +2323,7 @@ router.get('/audit-logs', optionalAuth, async (req: Request, res: Response) => {
       const auditLogs = await mongoStorage.getAuditLogs(limit, {
         offset,
         category,
-        userId
+        userId,
       });
 
       res.json({
@@ -2223,8 +2332,8 @@ router.get('/audit-logs', optionalAuth, async (req: Request, res: Response) => {
         meta: {
           limit,
           offset,
-          count: auditLogs.length
-        }
+          count: auditLogs.length,
+        },
       });
     } else {
       // Fallback when database is not available
@@ -2232,14 +2341,14 @@ router.get('/audit-logs', optionalAuth, async (req: Request, res: Response) => {
         success: true,
         data: [],
         message: 'Audit logs not available - database not connected',
-        meta: { limit, offset, count: 0 }
+        meta: { limit, offset, count: 0 },
       });
     }
   } catch (error) {
-    console.error('Audit logs API error:', error);
+    logger.error('Audit logs API error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch audit logs'
+      error: 'Failed to fetch audit logs',
     });
   }
 });
@@ -2254,7 +2363,7 @@ router.post('/audit-logs', authenticate, express.json(), async (req: Request, re
     if (!action) {
       return res.status(400).json({
         success: false,
-        error: 'Action is required for audit log entry'
+        error: 'Action is required for audit log entry',
       });
     }
 
@@ -2268,26 +2377,26 @@ router.post('/audit-logs', authenticate, express.json(), async (req: Request, re
         level: severity,
         userId,
         ip: req.ip || 'unknown',
-        userAgent: req.headers['user-agent'] || ''
+        userAgent: req.headers['user-agent'] || '',
       });
 
       res.json({
         success: true,
-        message: 'Audit log entry created'
+        message: 'Audit log entry created',
       });
     } else {
       // Fallback to console logging when database is not available
-      console.log(`[AUDIT] ${severity.toUpperCase()}: ${action} by ${userId} - ${details}`);
+      logger.info(`[AUDIT] ${severity.toUpperCase()}: ${action} by ${userId} - ${details}`);
       res.json({
         success: true,
-        message: 'Audit log entry created (console fallback)'
+        message: 'Audit log entry created (console fallback)',
       });
     }
   } catch (error) {
-    console.error('Audit log creation error:', error);
+    logger.error('Audit log creation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create audit log entry'
+      error: 'Failed to create audit log entry',
     });
   }
 });
@@ -2310,7 +2419,7 @@ router.get('/error-logs', optionalAuth, async (req: Request, res: Response) => {
         offset,
         severity,
         category,
-        url
+        url,
       });
 
       res.json({
@@ -2319,8 +2428,8 @@ router.get('/error-logs', optionalAuth, async (req: Request, res: Response) => {
         meta: {
           limit,
           offset,
-          count: errorLogs.length
-        }
+          count: errorLogs.length,
+        },
       });
     } else {
       // Fallback when database is not available
@@ -2328,14 +2437,14 @@ router.get('/error-logs', optionalAuth, async (req: Request, res: Response) => {
         success: true,
         data: [],
         message: 'Error logs not available - database not connected',
-        meta: { limit, offset, count: 0 }
+        meta: { limit, offset, count: 0 },
       });
     }
   } catch (error) {
-    console.error('Error logs API error:', error);
+    logger.error('Error logs API error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch error logs'
+      error: 'Failed to fetch error logs',
     });
   }
 });
@@ -2348,16 +2457,16 @@ router.post('/error-logs', authenticate, express.json(), async (req: Request, re
     const {
       message,
       stack,
-      category = 'general',
+      category: _category = 'general',
       severity = 'medium',
       url = '',
-      context = {}
+      context = {},
     } = req.body;
 
     if (!message) {
       return res.status(400).json({
         success: false,
-        error: 'Message is required for error log entry'
+        error: 'Message is required for error log entry',
       });
     }
 
@@ -2371,26 +2480,26 @@ router.post('/error-logs', authenticate, express.json(), async (req: Request, re
         path: url,
         ip: req.ip || 'unknown',
         userAgent: req.headers['user-agent'] || '',
-        resolved: false
+        resolved: false,
       });
 
       res.json({
         success: true,
-        message: 'Error log entry created'
+        message: 'Error log entry created',
       });
     } else {
       // Fallback to console logging when database is not available
-      console.error(`[ERROR] ${severity.toUpperCase()}: ${message} at ${url}`);
+      logger.error(`[ERROR] ${severity.toUpperCase()}: ${message} at ${url}`);
       res.json({
         success: true,
-        message: 'Error log entry created (console fallback)'
+        message: 'Error log entry created (console fallback)',
       });
     }
   } catch (error) {
-    console.error('Error log creation error:', error);
+    logger.error('Error log creation error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create error log entry'
+      error: 'Failed to create error log entry',
     });
   }
 });
@@ -2408,7 +2517,7 @@ router.get('/database-stats', optionalAuth, async (req: Request, res: Response) 
       try {
         additionalStats = await mongoStorage.getStats();
       } catch (statsError) {
-        console.warn('Failed to get additional database stats:', statsError);
+        logger.warn('Failed to get additional database stats:', statsError);
       }
     }
 
@@ -2417,14 +2526,14 @@ router.get('/database-stats', optionalAuth, async (req: Request, res: Response) 
       data: {
         connected: dbHealth.connected,
         stats: dbHealth.stats,
-        additional: additionalStats
-      }
+        additional: additionalStats,
+      },
     });
   } catch (error) {
-    console.error('Database stats API error:', error);
+    logger.error('Database stats API error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch database statistics'
+      error: 'Failed to fetch database statistics',
     });
   }
 });

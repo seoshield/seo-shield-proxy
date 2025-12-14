@@ -1,5 +1,7 @@
 import { Page } from 'puppeteer';
-import { SeoProtocolConfig } from '../config';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('ShadowDOMExtractor');
 
 /**
  * Shadow DOM configuration
@@ -9,11 +11,14 @@ export interface ShadowDOMConfig {
   deepSerialization: boolean;
   includeShadowContent: boolean;
   flattenShadowTrees: boolean;
-  customElements: Record<string, {
-    extractMethod: 'slot' | 'attribute' | 'custom';
-    selector?: string;
-    attribute?: string;
-  }>;
+  customElements: Record<
+    string,
+    {
+      extractMethod: 'slot' | 'attribute' | 'custom';
+      selector?: string;
+      attribute?: string;
+    }
+  >;
   preserveShadowBoundaries: boolean;
   extractCSSVariables: boolean;
   extractComputedStyles: boolean;
@@ -79,11 +84,11 @@ export class ShadowDOMExtractor {
       };
     }
 
-    console.log('🔍 Starting Shadow DOM content extraction...');
+    logger.info('Starting Shadow DOM content extraction...');
 
     try {
       const extractionScript = this.getExtractionScript();
-      const result = await page.evaluate(extractionScript, this.config) as {
+      const result = (await page.evaluate(extractionScript, this.config)) as {
         lightDOM: string;
         shadowDOMs: Array<{
           host: string;
@@ -119,9 +124,8 @@ export class ShadowDOMExtractor {
       this.logExtractionResults(extractedContent);
 
       return extractedContent;
-
     } catch (error) {
-      console.error('❌ Shadow DOM extraction failed:', error);
+      logger.error('Shadow DOM extraction failed:', error);
       const html = await page.content();
 
       return {
@@ -135,7 +139,9 @@ export class ShadowDOMExtractor {
           nestedDepth: 0,
           extractionTime: Date.now() - startTime,
         },
-        warnings: [`Extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        warnings: [
+          `Extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        ],
       };
     }
   }
@@ -352,7 +358,7 @@ export class ShadowDOMExtractor {
    */
   async extractCustomElementContent(page: Page, tagName: string): Promise<string[]> {
     if (!this.config.customElements[tagName]) {
-      console.warn(`No extraction configuration found for custom element: ${tagName}`);
+      logger.warn(`No extraction configuration found for custom element: ${tagName}`);
       return [];
     }
 
@@ -407,7 +413,7 @@ export class ShadowDOMExtractor {
     })(arguments[0], arguments[1]);
     `;
 
-    return await page.evaluate(extractionScript, tagName, elementConfig) as string[];
+    return (await page.evaluate(extractionScript, tagName, elementConfig)) as string[];
   }
 
   /**
@@ -435,7 +441,7 @@ export class ShadowDOMExtractor {
     }
     `;
 
-    return await page.evaluate(script) as Record<string, string>;
+    return (await page.evaluate(script)) as Record<string, string>;
   }
 
   /**
@@ -449,7 +455,7 @@ export class ShadowDOMExtractor {
     }
     `;
 
-    return await page.evaluate(script) as boolean;
+    return (await page.evaluate(script)) as boolean;
   }
 
   /**
@@ -492,7 +498,7 @@ export class ShadowDOMExtractor {
     }
     `;
 
-    return await page.evaluate(script) as {
+    return (await page.evaluate(script)) as {
       totalElements: number;
       shadowHosts: number;
       openShadowRoots: number;
@@ -505,21 +511,22 @@ export class ShadowDOMExtractor {
    * Log extraction results for monitoring
    */
   private logExtractionResults(result: ExtractedContent): void {
-    console.log('🔍 Shadow DOM Extraction Results:');
-    console.log(`   Total shadow roots: ${result.stats.totalShadowRoots}`);
-    console.log(`   Extracted elements: ${result.stats.extractedElements}`);
-    console.log(`   CSS variables: ${result.stats.cssVariables}`);
-    console.log(`   Max depth: ${result.stats.nestedDepth}`);
-    console.log(`   Extraction time: ${result.stats.extractionTime}ms`);
+    logger.debug(
+      `Shadow DOM Extraction Results: ` +
+        `roots=${result.stats.totalShadowRoots}, ` +
+        `elements=${result.stats.extractedElements}, ` +
+        `cssVars=${result.stats.cssVariables}, ` +
+        `depth=${result.stats.nestedDepth}, ` +
+        `time=${result.stats.extractionTime}ms`
+    );
 
     if (result.shadowDOMs.length > 0) {
-      console.log(`   Shadow hosts found: ${result.shadowDOMs.map(s => s.host).join(', ')}`);
+      logger.debug(`Shadow hosts found: ${result.shadowDOMs.map((s) => s.host).join(', ')}`);
     }
 
     if (result.warnings.length > 0) {
-      console.log(`   Warnings: ${result.warnings.length}`);
-      result.warnings.forEach(warning => {
-        console.log(`   ⚠️  ${warning}`);
+      result.warnings.forEach((warning) => {
+        logger.warn(`Shadow DOM extraction warning: ${warning}`);
       });
     }
   }
@@ -535,15 +542,15 @@ export class ShadowDOMExtractor {
       flattenShadowTrees: true,
       customElements: {
         'lit-element': {
-          extractMethod: 'slot'
+          extractMethod: 'slot',
         },
         'stencil-component': {
-          extractMethod: 'slot'
+          extractMethod: 'slot',
         },
         'custom-element': {
           extractMethod: 'custom',
-          selector: '.content'
-        }
+          selector: '.content',
+        },
       },
       preserveShadowBoundaries: false,
       extractCSSVariables: true,

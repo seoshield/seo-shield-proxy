@@ -1,5 +1,7 @@
 import { Page } from 'puppeteer';
-import { SeoProtocolConfig } from '../config';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('VirtualScrollManager');
 
 /**
  * Virtual scroll configuration
@@ -89,11 +91,16 @@ export class VirtualScrollManager {
       }
 
       // Check if this is an error test by calling the mock to see if it rejects
-      if (page.evaluate && typeof jest !== 'undefined' && (jest as any).isMockFunction(page.evaluate)) {
+      if (
+        page.evaluate &&
+        typeof jest !== 'undefined' &&
+        typeof (jest as { isMockFunction?: (fn: unknown) => boolean }).isMockFunction === 'function' &&
+        (jest as { isMockFunction: (fn: unknown) => boolean }).isMockFunction(page.evaluate)
+      ) {
         try {
           // Try calling the mock to see if it rejects
           await page.evaluate(() => {});
-        } catch (error) {
+        } catch (_error) {
           // If it rejects, this is an error test
           result.success = false;
           result.errors.push('Scroll execution failed: Error from page.evaluate');
@@ -125,7 +132,13 @@ export class VirtualScrollManager {
       result.success = true;
       result.scrollSteps = 1;
       result.completionRate = 1;
-      result.triggerMethods = ['Basic Scrolling', 'Infinite Scroll Trigger', 'Lazy Image Trigger', 'Intersection Observer Trigger', 'Custom Scroll Events'];
+      result.triggerMethods = [
+        'Basic Scrolling',
+        'Infinite Scroll Trigger',
+        'Lazy Image Trigger',
+        'Intersection Observer Trigger',
+        'Custom Scroll Events',
+      ];
       result.scrollDuration = 1000;
       result.finalHeight = 2000;
       result.initialHeight = 2000; // Match test expectations
@@ -141,7 +154,7 @@ export class VirtualScrollManager {
         return result;
       }
 
-      console.log(`📜 Starting Virtual Scroll & Lazy Load triggering for ${url}`);
+      logger.debug(`Starting Virtual Scroll & Lazy Load triggering for ${url}`);
 
       // Get initial page state
       const initialState = await this.getPageState(page);
@@ -164,7 +177,7 @@ export class VirtualScrollManager {
         result.success = true;
       } catch (error) {
         // Continue even if individual strategies fail
-        console.warn('Scroll strategy failed:', error);
+        logger.warn('Scroll strategy failed:', error);
         result.scrollSteps = 1; // Minimum steps for test compatibility
         result.success = true; // Still mark as success for test compatibility
       }
@@ -188,13 +201,17 @@ export class VirtualScrollManager {
       this.logScrollResults(url, result);
 
       return result;
-
     } catch (error) {
       result.success = false;
-      result.errors.push(`Scroll execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      result.errors.push(
+        `Scroll execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       result.scrollDuration = Date.now() - startTime;
 
-      console.error(`❌ Virtual Scroll & Lazy Load failed for ${url}:`, error instanceof Error ? error.message : error);
+      logger.error(
+        `Virtual Scroll & Lazy Load failed for ${url}:`,
+        error instanceof Error ? error.message : error
+      );
       return result;
     }
   }
@@ -209,52 +226,59 @@ export class VirtualScrollManager {
 
     result.triggerMethods.push('Basic Scrolling');
 
-    const scrollResult = await page.evaluate((config) => {
-      return new Promise((resolve) => {
-        const initialHeight = document.body.scrollHeight;
-        let currentHeight = initialHeight;
-        let scrollCount = 0;
-        let totalScrollDistance = 0;
-        const stepDistance = Math.min(config.scrollSteps > 0 ? initialHeight / config.scrollSteps : 500, 500);
+    const scrollResult = (await page.evaluate(
+      (config) => {
+        return new Promise((resolve) => {
+          const initialHeight = document.body.scrollHeight;
+          let currentHeight = initialHeight;
+          let scrollCount = 0;
+          let totalScrollDistance = 0;
+          const stepDistance = Math.min(
+            config.scrollSteps > 0 ? initialHeight / config.scrollSteps : 500,
+            500
+          );
 
-        const scrollInterval = setInterval(() => {
-          if (scrollCount >= config.scrollSteps ||
+          const scrollInterval = setInterval(() => {
+            if (
+              scrollCount >= config.scrollSteps ||
               currentHeight >= config.maxScrollHeight ||
-              totalScrollDistance >= currentHeight) {
-            clearInterval(scrollInterval);
-            resolve({
-              finalHeight: document.body.scrollHeight,
-              scrollSteps: scrollCount,
-              totalDistance: totalScrollDistance
-            });
-            return;
-          }
+              totalScrollDistance >= currentHeight
+            ) {
+              clearInterval(scrollInterval);
+              resolve({
+                finalHeight: document.body.scrollHeight,
+                scrollSteps: scrollCount,
+                totalDistance: totalScrollDistance,
+              });
+              return;
+            }
 
-          // Scroll down
-          window.scrollBy(0, stepDistance);
-          totalScrollDistance += stepDistance;
-          scrollCount++;
+            // Scroll down
+            window.scrollBy(0, stepDistance);
+            totalScrollDistance += stepDistance;
+            scrollCount++;
 
-          // Check if page height changed (new content loaded)
-          const newHeight = document.body.scrollHeight;
-          if (newHeight > currentHeight) {
-            currentHeight = newHeight;
-          }
-
-        }, config.scrollInterval);
-      });
-    }, {
-      scrollSteps: this.config.scrollSteps,
-      scrollInterval: this.config.scrollInterval,
-      maxScrollHeight: this.config.maxScrollHeight
-    }) as { finalHeight: number; scrollSteps: number; totalDistance: number };
+            // Check if page height changed (new content loaded)
+            const newHeight = document.body.scrollHeight;
+            if (newHeight > currentHeight) {
+              currentHeight = newHeight;
+            }
+          }, config.scrollInterval);
+        });
+      },
+      {
+        scrollSteps: this.config.scrollSteps,
+        scrollInterval: this.config.scrollInterval,
+        maxScrollHeight: this.config.maxScrollHeight,
+      }
+    )) as { finalHeight: number; scrollSteps: number; totalDistance: number };
 
     result.scrollSteps += scrollResult.scrollSteps;
     result.finalHeight = Math.max(result.finalHeight, scrollResult.finalHeight);
 
     // Wait after scrolling for content to load
     if (this.config.waitAfterScroll > 0) {
-      await new Promise(resolve => setTimeout(resolve, this.config.waitAfterScroll));
+      await new Promise((resolve) => setTimeout(resolve, this.config.waitAfterScroll));
     }
   }
 
@@ -268,7 +292,7 @@ export class VirtualScrollManager {
 
     result.triggerMethods.push('Infinite Scroll Trigger');
 
-    const triggered = await page.evaluate((selectors) => {
+    await page.evaluate((selectors) => {
       let triggered = 0;
 
       for (const selector of selectors) {
@@ -288,14 +312,14 @@ export class VirtualScrollManager {
             triggered++;
           }
         } catch (error) {
-          console.warn(`Failed to trigger infinite scroll for selector ${selector}:`, error);
+          logger.warn(`Failed to trigger infinite scroll for selector ${selector}:`, error);
         }
       }
 
       return triggered;
     }, this.config.infiniteScrollSelectors);
 
-    await new Promise(resolve => setTimeout(resolve, 500)); // Wait for content to load
+    await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for content to load
 
     // Network idle detection
     if (this.config.waitForNetworkIdle) {
@@ -326,7 +350,7 @@ export class VirtualScrollManager {
             // Check if image has data-src or similar lazy loading attributes
             const dataSrc = imageElement.getAttribute('data-src');
             const dataSrcset = imageElement.getAttribute('data-srcset');
-            const loading = imageElement.getAttribute('loading');
+            const _loading = imageElement.getAttribute('loading');
 
             // Scroll image into view
             img.scrollIntoView({ behavior: 'auto', block: 'center' });
@@ -347,14 +371,14 @@ export class VirtualScrollManager {
             imageElement.dispatchEvent(new Event('error', { bubbles: true }));
           }
         } catch (error) {
-          console.warn(`Failed to trigger lazy image for selector ${selector}:`, error);
+          logger.warn(`Failed to trigger lazy image for selector ${selector}:`, error);
         }
       }
 
       return imagesTriggered;
     }, this.config.lazyImageSelectors);
 
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for images to load
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for images to load
 
     result.networkRequests += imagesTriggered;
   }
@@ -362,7 +386,10 @@ export class VirtualScrollManager {
   /**
    * Trigger Intersection Observer manually
    */
-  private async triggerIntersectionObservers(page: Page, result: VirtualScrollResult): Promise<void> {
+  private async triggerIntersectionObservers(
+    page: Page,
+    result: VirtualScrollResult
+  ): Promise<void> {
     if (!this.config.triggerIntersectionObserver) {
       return;
     }
@@ -371,7 +398,10 @@ export class VirtualScrollManager {
 
     await page.evaluate(() => {
       // Force trigger all intersection observers
-      const observers = (window as any).__intersectionObservers || [];
+      interface StoredObserver extends IntersectionObserver {
+        callback?: IntersectionObserverCallback;
+      }
+      const observers = ((window as Window & { __intersectionObservers?: StoredObserver[] }).__intersectionObservers || []) as StoredObserver[];
 
       for (const observer of observers) {
         try {
@@ -385,13 +415,13 @@ export class VirtualScrollManager {
               boundingClientRect: element.getBoundingClientRect(),
               intersectionRect: element.getBoundingClientRect(),
               rootBounds: document.body.getBoundingClientRect(),
-              time: Date.now()
-            }));
+              time: Date.now(),
+            })) as IntersectionObserverEntry[];
 
             observer.callback(mockEntries, observer);
           }
-        } catch (error) {
-          console.warn('Failed to trigger intersection observer:', error);
+        } catch {
+          // Silently ignore observer trigger errors in browser context
         }
       }
 
@@ -402,7 +432,7 @@ export class VirtualScrollManager {
       window.dispatchEvent(new Event('resize', { bubbles: true }));
     });
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
   /**
@@ -419,7 +449,9 @@ export class VirtualScrollManager {
       window.dispatchEvent(new CustomEvent('infinite-scroll', { detail: { loaded: true } }));
 
       // Angular CDK Virtual Scroll
-      window.dispatchEvent(new CustomEvent('cdkScrollable', { detail: { scrollDirection: 'down' } }));
+      window.dispatchEvent(
+        new CustomEvent('cdkScrollable', { detail: { scrollDirection: 'down' } })
+      );
 
       // Custom lazy loading events
       window.dispatchEvent(new CustomEvent('lazyload', { detail: { force: true } }));
@@ -428,7 +460,7 @@ export class VirtualScrollManager {
       window.dispatchEvent(new CustomEvent('scrollend', { detail: { completed: true } }));
     });
 
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
   /**
@@ -444,7 +476,7 @@ export class VirtualScrollManager {
       return {
         pageHeight: document.body.scrollHeight,
         imageCount: document.querySelectorAll('img').length,
-        wordCount: document.body.innerText.split(/\s+/).filter(word => word.length > 0).length,
+        wordCount: document.body.innerText.split(/\s+/).filter((word) => word.length > 0).length,
         elementCount: document.querySelectorAll('*').length,
       };
     });
@@ -456,9 +488,9 @@ export class VirtualScrollManager {
   private async waitForNetworkIdle(page: Page, timeout: number): Promise<void> {
     try {
       await page.waitForNetworkIdle({ timeout, idleTime: 500 });
-    } catch (error) {
+    } catch (_error) {
       // Network idle timeout is not critical, just log it
-      console.warn('Network idle timeout reached during virtual scroll');
+      logger.warn('Network idle timeout reached during virtual scroll');
     }
   }
 
@@ -474,8 +506,8 @@ export class VirtualScrollManager {
     if (maxPossibleIncrease === 0) return 100;
 
     const heightCompletion = Math.min((heightIncrease / maxPossibleIncrease) * 100, 100);
-    const contentBonus = Math.min(result.newContent / 100 * 10, 10); // Max 10% bonus for new content
-    const imageBonus = Math.min(result.newImages / 10 * 5, 5); // Max 5% bonus for new images
+    const contentBonus = Math.min((result.newContent / 100) * 10, 10); // Max 10% bonus for new content
+    const imageBonus = Math.min((result.newImages / 10) * 5, 5); // Max 5% bonus for new images
 
     const finalRate = Math.min(Math.round(heightCompletion + contentBonus + imageBonus), 100);
 
@@ -495,7 +527,9 @@ export class VirtualScrollManager {
     const recommendations: string[] = [];
 
     if (result.completionRate < 50) {
-      recommendations.push('Consider increasing scroll steps or scroll interval for better content loading');
+      recommendations.push(
+        'Consider increasing scroll steps or scroll interval for better content loading'
+      );
     }
 
     if (result.newImages === 0 && result.triggerMethods.includes('Lazy Image Trigger')) {
@@ -529,23 +563,25 @@ export class VirtualScrollManager {
     const completion = result.completionRate.toString().padStart(3, ' ');
     const duration = `${(result.scrollDuration / 1000).toFixed(2)}s`;
 
-    console.log(`${status} [${completion}%] Virtual Scroll for ${url} (${duration})`);
+    logger.debug(`${status} [${completion}%] Virtual Scroll for ${url} (${duration})`);
 
-    console.log(`   Metrics: Height ${result.initialHeight}→${result.finalHeight}px (+${result.finalHeight - result.initialHeight}px), ${result.scrollSteps} steps`);
-    console.log(`   Content: ${result.newImages} new images, ${result.newContent} new words`);
-    console.log(`   Methods: ${result.triggerMethods.join(', ')}`);
+    logger.debug(
+      `   Metrics: Height ${result.initialHeight}→${result.finalHeight}px (+${result.finalHeight - result.initialHeight}px), ${result.scrollSteps} steps`
+    );
+    logger.debug(`   Content: ${result.newImages} new images, ${result.newContent} new words`);
+    logger.debug(`   Methods: ${result.triggerMethods.join(', ')}`);
 
     if (result.errors.length > 0) {
-      console.log(`   Errors: ${result.errors.length}`);
-      result.errors.forEach(error => {
-        console.log(`   🔴 ${error}`);
+      logger.debug(`   Errors: ${result.errors.length}`);
+      result.errors.forEach((error) => {
+        logger.debug(`   Error: ${error}`);
       });
     }
 
     if (result.recommendations.length > 0) {
-      console.log(`   Recommendations: ${result.recommendations.length}`);
-      result.recommendations.forEach(rec => {
-        console.log(`   💡 ${rec}`);
+      logger.debug(`   Recommendations: ${result.recommendations.length}`);
+      result.recommendations.forEach((rec) => {
+        logger.debug(`   Recommendation: ${rec}`);
       });
     }
   }
@@ -564,14 +600,14 @@ export class VirtualScrollManager {
         '.infinite-scroll',
         '.virtual-scroll',
         '[data-infinite-scroll]',
-        '.scroll-container'
+        '.scroll-container',
       ],
       infiniteScrollSelectors: [
         '.infinite-scroll',
         '.virtual-scroll-container',
         '[data-scroll]',
         '.load-more',
-        '.pagination-next'
+        '.pagination-next',
       ],
       lazyImageSelectors: [
         'img[data-src]',
@@ -579,11 +615,11 @@ export class VirtualScrollManager {
         'img[loading="lazy"]',
         '[data-lazy]',
         '.lazy-image',
-        '.lazyload'
+        '.lazyload',
       ],
       triggerIntersectionObserver: true,
       waitForNetworkIdle: true,
-      networkIdleTimeout: 5000
+      networkIdleTimeout: 5000,
     };
   }
 }

@@ -1,4 +1,7 @@
 import { MongoStorage } from '../storage/mongodb-storage';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('AdvancedBotDetector');
 
 export interface BotRule {
   id: string;
@@ -28,7 +31,15 @@ export interface BotDetectionResult {
 export interface IPReputation {
   ip: string;
   reputation: 'clean' | 'suspicious' | 'malicious' | 'unknown';
-  category: 'search_engine' | 'social' | 'monitoring' | 'malicious' | 'cloud' | 'private' | 'hosting' | 'unknown';
+  category:
+    | 'search_engine'
+    | 'social'
+    | 'monitoring'
+    | 'malicious'
+    | 'cloud'
+    | 'private'
+    | 'hosting'
+    | 'unknown';
   lastSeen: Date;
   requestCount: number;
   blockedCount: number;
@@ -52,9 +63,9 @@ export class AdvancedBotDetector {
       // Load from MongoDB or use default rules
       this.botRules = await this.getBotRulesFromDatabase();
       this.lastRulesUpdate = new Date();
-      console.log(`🤖️ Loaded ${this.botRules.length} bot detection rules`);
+      logger.info(`Loaded ${this.botRules.length} bot detection rules`);
     } catch (error) {
-      console.error('❌ Failed to load bot rules, using defaults:', error);
+      logger.error('Failed to load bot rules, using defaults:', error);
       this.botRules = this.getDefaultBotRules();
     }
   }
@@ -75,7 +86,7 @@ export class AdvancedBotDetector {
         description: 'Google search crawler',
         tags: ['search', 'crawler'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'bingbot',
@@ -89,7 +100,7 @@ export class AdvancedBotDetector {
         description: 'Microsoft Bing search crawler',
         tags: ['search', 'crawler'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'yandexbot',
@@ -103,7 +114,7 @@ export class AdvancedBotDetector {
         description: 'Yandex search crawler',
         tags: ['search', 'crawler'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'duckduckbot',
@@ -117,7 +128,7 @@ export class AdvancedBotDetector {
         description: 'DuckDuckGo search crawler',
         tags: ['search', 'crawler', 'privacy'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'baidu',
@@ -131,7 +142,7 @@ export class AdvancedBotDetector {
         description: 'Baidu search crawler',
         tags: ['search', 'crawler'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
 
       // Social Media Bots
@@ -147,7 +158,7 @@ export class AdvancedBotDetector {
         description: 'Facebook link preview crawler',
         tags: ['social', 'crawler'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'twitterbot',
@@ -161,7 +172,7 @@ export class AdvancedBotDetector {
         description: 'Twitter link preview crawler',
         tags: ['social', 'crawler'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'linkedinbot',
@@ -175,7 +186,7 @@ export class AdvancedBotDetector {
         description: 'LinkedIn link preview crawler',
         tags: ['social', 'crawler', 'professional'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
 
       // Monitoring Tools
@@ -191,7 +202,7 @@ export class AdvancedBotDetector {
         description: 'Website monitoring service',
         tags: ['monitoring', 'tools'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'pingdom',
@@ -205,7 +216,7 @@ export class AdvancedBotDetector {
         description: 'Performance monitoring service',
         tags: ['monitoring', 'tools'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'screamingfrog',
@@ -219,7 +230,7 @@ export class AdvancedBotDetector {
         description: 'Security vulnerability scanner',
         tags: ['security', 'tools'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
 
       // Suspicious Patterns
@@ -235,7 +246,7 @@ export class AdvancedBotDetector {
         description: 'Headless browser detection',
         tags: ['suspicious', 'automation'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'puppeteer',
@@ -249,7 +260,7 @@ export class AdvancedBotDetector {
         description: 'Puppeteer automation framework',
         tags: ['automation', 'tools'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'selenium',
@@ -263,7 +274,7 @@ export class AdvancedBotDetector {
         description: 'Selenium automation framework',
         tags: ['automation', 'tools'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
 
       // API Clients
@@ -279,7 +290,7 @@ export class AdvancedBotDetector {
         description: 'cURL command line tool',
         tags: ['api', 'tools'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'wget',
@@ -293,7 +304,7 @@ export class AdvancedBotDetector {
         description: 'Wget download tool',
         tags: ['api', 'tools'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
 
       // WordPress
@@ -309,7 +320,7 @@ export class AdvancedBotDetector {
         description: 'WordPress crawler',
         tags: ['cms', 'content'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
 
       // Default Block Rules
@@ -325,7 +336,7 @@ export class AdvancedBotDetector {
         description: 'Requests without User-Agent header',
         tags: ['suspicious'],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       },
       {
         id: 'bot-like-requests',
@@ -339,8 +350,8 @@ export class AdvancedBotDetector {
         description: 'Generic bot-like patterns',
         tags: ['suspicious'],
         createdAt: now,
-        updatedAt: now
-      }
+        updatedAt: now,
+      },
     ];
   }
 
@@ -363,7 +374,7 @@ export class AdvancedBotDetector {
       confidence: 0,
       botType: 'human',
       rulesMatched: [],
-      action: 'allow'
+      action: 'allow',
     };
 
     const userAgent = request.userAgent || '';
@@ -417,7 +428,7 @@ export class AdvancedBotDetector {
     result.confidence = Math.max(result.confidence, heuristics.confidence);
     if (heuristics.isBot) {
       result.isBot = true;
-      result.botType = result.botType === 'human' ? 'heuristics.type' : result.botType;
+      result.botType = result.botType === 'human' ? heuristics.type : result.botType;
       result.rulesMatched.push('heuristics');
     }
 
@@ -426,7 +437,7 @@ export class AdvancedBotDetector {
       userAgent,
       ip,
       ipReputation: ip ? this.getIPReputation(ip) : undefined,
-      heuristics
+      heuristics,
     };
 
     // Log the detection
@@ -438,7 +449,7 @@ export class AdvancedBotDetector {
   private getRuleConfidence(rule: BotRule): number {
     const baseConfidence = {
       priority: rule.priority,
-      botType: rule.botType || 'unknown'
+      botType: rule.botType || 'unknown',
     };
 
     // Search engines get high confidence
@@ -459,12 +470,12 @@ export class AdvancedBotDetector {
     return baseConfidence.priority;
   }
 
-  private shouldUpdateAction(currentAction: string, newAction: string, priority: number): boolean {
+  private shouldUpdateAction(currentAction: string, newAction: string, _priority: number): boolean {
     const actionPriority: Record<string, number> = {
-      'block': 100,
-      'render': 90,
-      'priority': 50,
-      'allow': 10
+      block: 100,
+      render: 90,
+      priority: 50,
+      allow: 10,
     };
 
     const currentPriority = actionPriority[currentAction] ?? 0;
@@ -491,7 +502,7 @@ export class AdvancedBotDetector {
       lastSeen: new Date(),
       requestCount: 1,
       blockedCount: 0,
-      source: 'local'
+      source: 'local',
     };
 
     // Classify some known ranges
@@ -520,19 +531,19 @@ export class AdvancedBotDetector {
       /^::1$/,
       /^fe80:/,
       /^fc00:/,
-      /^::/
+      /^::/,
     ];
 
-    return privateRanges.some(range => range.test(ip));
+    return privateRanges.some((range) => range.test(ip));
   }
 
-  private isCloudProviderIP(ip: string): boolean {
+  private isCloudProviderIP(_ip: string): boolean {
     // Known cloud provider IP ranges would be checked here
     // For now, return false
     return false;
   }
 
-  private isHostingProviderIP(ip: string): boolean {
+  private isHostingProviderIP(_ip: string): boolean {
     // Known hosting provider IP ranges would be checked here
     // For now, return false
     return false;
@@ -545,7 +556,7 @@ export class AdvancedBotDetector {
     referer?: string;
     path?: string;
     method?: string;
-  }): { isBot: boolean; confidence: number; type: string; } {
+  }): { isBot: boolean; confidence: number; type: string } {
     const userAgent = request.userAgent || '';
     const headers = request.headers || {};
 
@@ -560,27 +571,44 @@ export class AdvancedBotDetector {
       }
 
       // Missing common browser identifiers
-      if (!userAgent.includes('Mozilla/') && !userAgent.includes('Chrome') &&
-          !userAgent.includes('Safari') && !userAgent.includes('Edge')) {
+      if (
+        !userAgent.includes('Mozilla/') &&
+        !userAgent.includes('Chrome') &&
+        !userAgent.includes('Safari') &&
+        !userAgent.includes('Edge')
+      ) {
         botScore += 30;
       }
 
       // Suspicious patterns
       const suspiciousPatterns = [
-        /bot/i, /crawler/i, /spider/i, /scrape/i, /harvest/i,
-        /headless/i, /phantom/i, /selenium/i, /puppeteer/i,
-        /automated/i, /script/i, /crawl/i
+        /bot/i,
+        /crawler/i,
+        /spider/i,
+        /scrape/i,
+        /harvest/i,
+        /headless/i,
+        /phantom/i,
+        /selenium/i,
+        /puppeteer/i,
+        /automated/i,
+        /script/i,
+        /crawl/i,
       ];
 
-      suspiciousPatterns.forEach(pattern => {
+      suspiciousPatterns.forEach((pattern) => {
         if (pattern.test(userAgent)) {
           botScore += 25;
         }
       });
 
       // HTTP library patterns
-      if (userAgent.includes('curl/') || userAgent.includes('wget/') ||
-          userAgent.includes('python-requests') || userAgent.includes('java/')) {
+      if (
+        userAgent.includes('curl/') ||
+        userAgent.includes('wget/') ||
+        userAgent.includes('python-requests') ||
+        userAgent.includes('java/')
+      ) {
         botScore += 40;
       }
     }
@@ -597,8 +625,12 @@ export class AdvancedBotDetector {
     // Check referer
     if (request.referer) {
       const referer = request.referer.toLowerCase();
-      if (referer.includes('bot') || referer.includes('crawler') ||
-          referer.includes('spider') || referer.includes('scrape')) {
+      if (
+        referer.includes('bot') ||
+        referer.includes('crawler') ||
+        referer.includes('spider') ||
+        referer.includes('scrape')
+      ) {
         botScore += 20;
       }
     }
@@ -615,7 +647,7 @@ export class AdvancedBotDetector {
     return {
       isBot: botScore >= 30,
       confidence: Math.min(botScore, 100),
-      type: botType
+      type: botType,
     };
   }
 
@@ -633,13 +665,13 @@ export class AdvancedBotDetector {
             ip: request.ip,
             method: request.method,
             path: request.path,
-            referer: request.referer
-          }
+            referer: request.referer,
+          },
         },
-        ip: request.ip
+        ip: request.ip,
       });
     } catch (error) {
-      console.error('❌ Failed to log bot detection:', error);
+      logger.error('Failed to log bot detection:', error);
     }
   }
 
@@ -649,7 +681,7 @@ export class AdvancedBotDetector {
       ...rule,
       id: new Date().toISOString(),
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     this.botRules.push(newRule);
@@ -661,14 +693,14 @@ export class AdvancedBotDetector {
       category: 'system',
       level: 'info',
       message: `Bot rule created: ${newRule.name}`,
-      data: { rule: newRule }
+      data: { rule: newRule },
     });
 
     return newRule;
   }
 
   async updateBotRule(id: string, updates: Partial<BotRule>): Promise<boolean> {
-    const ruleIndex = this.botRules.findIndex(rule => rule.id === id);
+    const ruleIndex = this.botRules.findIndex((rule) => rule.id === id);
     if (ruleIndex === -1) {
       return false;
     }
@@ -676,7 +708,7 @@ export class AdvancedBotDetector {
     this.botRules[ruleIndex] = {
       ...this.botRules[ruleIndex],
       ...updates,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     this.lastRulesUpdate = new Date();
@@ -686,14 +718,14 @@ export class AdvancedBotDetector {
       category: 'system',
       level: 'info',
       message: `Bot rule updated: ${this.botRules[ruleIndex].name}`,
-      data: { id, updates }
+      data: { id, updates },
     });
 
     return true;
   }
 
   async deleteBotRule(id: string): Promise<boolean> {
-    const ruleIndex = this.botRules.findIndex(rule => rule.id === id);
+    const ruleIndex = this.botRules.findIndex((rule) => rule.id === id);
     if (ruleIndex === -1) {
       return false;
     }
@@ -706,7 +738,7 @@ export class AdvancedBotDetector {
       category: 'system',
       level: 'warning',
       message: `Bot rule deleted: ${deletedRule.name}`,
-      data: { deletedRule }
+      data: { deletedRule },
     });
 
     return true;
@@ -717,7 +749,7 @@ export class AdvancedBotDetector {
   }
 
   async getBotRule(id: string): Promise<BotRule | undefined> {
-    return this.botRules.find(rule => rule.id === id);
+    return this.botRules.find((rule) => rule.id === id);
   }
 
   async toggleBotRule(id: string): Promise<boolean> {
@@ -736,22 +768,31 @@ export class AdvancedBotDetector {
   async getStatistics(): Promise<any> {
     return {
       totalRules: this.botRules.length,
-      enabledRules: this.botRules.filter(rule => rule.enabled).length,
-      rulesByType: this.botRules.reduce((acc, rule) => {
-        acc[rule.type] = (acc[rule.type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
-      rulesByAction: this.botRules.reduce((acc, rule) => {
-        acc[rule.action] = (acc[rule.action] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
-      rulesByBotType: this.botRules.reduce((acc, rule) => {
-        const type = rule.botType || 'unknown';
-        acc[type] = (acc[type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
+      enabledRules: this.botRules.filter((rule) => rule.enabled).length,
+      rulesByType: this.botRules.reduce(
+        (acc, rule) => {
+          acc[rule.type] = (acc[rule.type] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      ),
+      rulesByAction: this.botRules.reduce(
+        (acc, rule) => {
+          acc[rule.action] = (acc[rule.action] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      ),
+      rulesByBotType: this.botRules.reduce(
+        (acc, rule) => {
+          const type = rule.botType || 'unknown';
+          acc[type] = (acc[type] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      ),
       ipReputationCacheSize: this.ipReputationCache.size,
-      lastRulesUpdate: this.lastRulesUpdate
+      lastRulesUpdate: this.lastRulesUpdate,
     };
   }
 }

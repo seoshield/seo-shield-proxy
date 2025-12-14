@@ -7,36 +7,61 @@
  */
 
 import express, { Request, Response, NextFunction } from 'express';
-import { createServer, Server as HttpServer } from 'http';
-import { createProxyMiddleware, RequestHandler } from 'http-proxy-middleware';
+import { createServer, Server as HttpServer, IncomingMessage, ServerResponse } from 'http';
+import { createProxyMiddleware, Options } from 'http-proxy-middleware';
 import { isbot } from 'isbot';
 import config from './config';
-import cache, { getCache } from './cache';
+import { getCache } from './cache';
 import browserManager from './browser';
 import CacheRules from './cache-rules';
-import {
-  generalRateLimiter,
-  ssrRateLimiter
-} from './middleware/rate-limiter';
+import { generalRateLimiter } from './middleware/rate-limiter';
 import { databaseManager } from './database/database-manager';
 import { AdvancedBotDetector } from './bot-detection/advanced-bot-detector';
 import { Logger } from './utils/logger';
 
 const logger = new Logger('ProxyServer');
 
+// Type for traffic event data
+interface TrafficEventData {
+  timestamp?: Date | number;
+  method?: string;
+  path?: string;
+  ip?: string;
+  userAgent?: string;
+  headers?: Record<string, string | string[] | undefined>;
+  isBot?: boolean;
+  action?: 'ssr' | 'proxy' | 'static' | 'bypass' | 'error';
+  botType?: string;
+  botConfidence?: number;
+  botRulesMatched?: string[];
+  botAction?: string;
+}
+
+// Type for cached SSR content
+interface CachedContent {
+  content: string;
+  renderTime: number;
+}
+
 // Traffic event sender to API server and database
-async function sendTrafficEvent(trafficData: any) {
+async function sendTrafficEvent(trafficData: TrafficEventData) {
   try {
     // Store in MongoDB if available
     const mongoStorage = databaseManager.getMongoStorage();
     if (mongoStorage) {
+      const timestamp =
+        trafficData.timestamp instanceof Date
+          ? trafficData.timestamp
+          : typeof trafficData.timestamp === 'number'
+            ? new Date(trafficData.timestamp)
+            : new Date();
       await mongoStorage.storeTrafficMetric({
-        timestamp: trafficData.timestamp || new Date(),
+        timestamp,
         method: trafficData.method || 'GET',
         path: trafficData.path || '/',
         ip: trafficData.ip || 'unknown',
         userAgent: trafficData.userAgent || '',
-        referer: trafficData.headers?.referer || '',
+        referer: (trafficData.headers?.referer as string) || '',
         isBot: trafficData.isBot || false,
         action: trafficData.action || 'proxy',
         responseTime: 0, // Not measured at this level
@@ -58,7 +83,7 @@ async function sendTrafficEvent(trafficData: any) {
     if (!response.ok) {
       logger.debug(`Failed to send traffic event: ${response.status}`);
     }
-  } catch (error) {
+  } catch (_error) {
     // Silently fail - API server might not be running
     logger.debug('Could not send traffic event to API server');
   }
@@ -87,25 +112,57 @@ app.get('/shieldhealth', (req: Request, res: Response) => {
     mode: 'proxy-only',
     port: config.PORT,
     target: config.TARGET_URL,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Static file extensions that should bypass SSR
 const STATIC_EXTENSIONS = [
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.css', '.js', '.jsx',
-  '.ts', '.tsx', '.woff', '.woff2', '.ttf', '.eot', '.mp4', '.webm', '.mp3',
-  '.wav', '.pdf', '.zip', '.txt', '.xml', '.json', '.rss', '.atom'
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.gif',
+  '.webp',
+  '.svg',
+  '.ico',
+  '.css',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
+  '.mp4',
+  '.webm',
+  '.mp3',
+  '.wav',
+  '.pdf',
+  '.zip',
+  '.txt',
+  '.xml',
+  '.json',
+  '.rss',
+  '.atom',
 ];
 
 function isStaticAsset(path: string): boolean {
   // Don't treat API endpoints or root paths as static assets
-  if (path.startsWith('/api') || path.startsWith('/shieldhealth') || path.startsWith('/assets') || path === '/' || path.endsWith('/')) {
+  if (
+    path.startsWith('/api') ||
+    path.startsWith('/shieldhealth') ||
+    path.startsWith('/assets') ||
+    path === '/' ||
+    path.endsWith('/')
+  ) {
     return false;
   }
 
-  // Check for static file extensions
-  return STATIC_EXTENSIONS.some(ext => path.includes(ext));
+  // Check for static file extensions - use endsWith to avoid false positives
+  // e.g., '/image.png/page' should NOT match as static asset
+  const pathWithoutQuery = path.split('?')[0]; // Remove query string
+  return STATIC_EXTENSIONS.some((ext) => pathWithoutQuery.endsWith(ext));
 }
 
 // SSR middleware with caching
@@ -124,16 +181,16 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
         headers: req.headers as Record<string, string>,
         referer: req.headers.referer,
         path: requestPath,
-        method: req.method
+        method: req.method,
       });
     } catch (error) {
-      console.warn('⚠️  Advanced bot detection failed, falling back to basic:', error);
+      logger.warn('Advanced bot detection failed, falling back to basic:', error);
       botDetection = {
         isBot: isbot(userAgent),
         confidence: isbot(userAgent) ? 0.8 : 0.2,
         botType: isbot(userAgent) ? 'unknown' : 'human',
         rulesMatched: [],
-        action: isbot(userAgent) ? 'render' : 'allow' as const
+        action: isbot(userAgent) ? 'render' : ('allow' as const),
       };
     }
   } else {
@@ -142,7 +199,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
       confidence: isbot(userAgent) ? 0.7 : 0.3,
       botType: isbot(userAgent) ? 'unknown' : 'human',
       rulesMatched: [],
-      action: isbot(userAgent) ? 'render' : 'allow' as const
+      action: isbot(userAgent) ? 'render' : ('allow' as const),
     };
   }
 
@@ -153,7 +210,9 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   const isRenderPreview = renderParam === 'preview' || renderParam === 'true';
   const isRenderDebug = renderParam === 'debug';
 
-  logger.debug(`${req.method} ${requestPath} - Bot: ${isBotRequest} (${botDetection.botType}, ${(botDetection.confidence * 100).toFixed(0)}%)`);
+  logger.debug(
+    `${req.method} ${requestPath} - Bot: ${isBotRequest} (${botDetection.botType}, ${(botDetection.confidence * 100).toFixed(0)}%)`
+  );
   if (botDetector && botDetection.rulesMatched.length > 0) {
     logger.debug(`Rules matched: ${botDetection.rulesMatched.join(', ')}`);
   }
@@ -172,9 +231,9 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
     botAction: botDetection.action,
     headers: {
       'user-agent': userAgent,
-      'referer': req.headers.referer,
-      'accept': req.headers.accept
-    }
+      referer: req.headers.referer,
+      accept: req.headers.accept,
+    },
   });
 
   // Skip SSR for static assets only
@@ -223,12 +282,12 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
             botType: botDetection.botType,
             confidence: `${(botDetection.confidence * 100).toFixed(1)}%`,
             rulesMatched: botDetection.rulesMatched,
-            action: botDetection.action
+            action: botDetection.action,
           },
           cacheDecision: cacheDecision,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         },
-        html: renderResult.html
+        html: renderResult.html,
       });
     } catch (error) {
       return res.status(500).json({
@@ -236,8 +295,8 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
         debug: {
           url: fullUrl,
           error: (error as Error).message,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
     }
   }
@@ -250,7 +309,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
       const cached = (await getCache()).get(fullUrl);
 
       if (cached && !isRenderPreview) {
-        const cacheData = JSON.parse(cached as any);
+        const cacheData = JSON.parse(cached as string) as CachedContent;
         logger.debug(`Bot cache HIT: ${requestPath}`);
         res.status(200).send(cacheData.content);
         return;
@@ -261,7 +320,10 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
 
       if (renderResult && renderResult.html) {
         // Cache the rendered content for future bot requests
-        (await getCache()).set(fullUrl, JSON.stringify({ content: renderResult.html, renderTime: Date.now() }));
+        (await getCache()).set(
+          fullUrl,
+          JSON.stringify({ content: renderResult.html, renderTime: Date.now() })
+        );
         logger.debug(`Bot SSR cached: ${requestPath}`);
         res.status(renderResult.statusCode || 200).send(renderResult.html);
       } else {
@@ -307,11 +369,14 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
             const renderResult = await browserManager.render(fullUrl);
 
             if (renderResult && renderResult.html) {
-              cacheInstance.set(fullUrl, JSON.stringify({
-                content: renderResult.html,
-                renderTime: Date.now(),
-                statusCode: renderResult.statusCode || 200
-              }));
+              cacheInstance.set(
+                fullUrl,
+                JSON.stringify({
+                  content: renderResult.html,
+                  renderTime: Date.now(),
+                  statusCode: renderResult.statusCode || 200,
+                })
+              );
               logger.debug(`Background revalidation completed: ${requestPath}`);
             }
           } catch (error) {
@@ -320,7 +385,7 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
         });
 
         return; // Response already sent
-      } catch (parseError) {
+      } catch (_parseError) {
         logger.warn(`Cache parse error for ${requestPath}, serving fresh`);
       }
     }
@@ -331,22 +396,27 @@ app.use(async (req: Request, res: Response, next: NextFunction) => {
   return next();
 });
 
-// Create proxy middleware
-const proxyMiddleware = createProxyMiddleware({
+// Create proxy middleware with proper types
+const proxyOptions: Options<IncomingMessage, ServerResponse> = {
   target: config.TARGET_URL,
   changeOrigin: true,
   followRedirects: true,
   timeout: 30000,
-  onProxyReq: (proxyReq: any, req: any, res: any) => {
-    logger.debug(`Proxy: ${req.method} ${req.url}`);
+  on: {
+    proxyReq: (proxyReq, req) => {
+      logger.debug(`Proxy: ${req.method} ${req.url}`);
+    },
+    error: (err, req, res) => {
+      logger.error(`Proxy error: ${err.message} for ${req.url}`);
+      const response = res as ServerResponse;
+      if (!response.headersSent) {
+        response.statusCode = 502;
+        response.end('Bad Gateway: Target server unavailable');
+      }
+    },
   },
-  onError: (err: any, req: any, res: any) => {
-    logger.error(`Proxy error: ${err.message} for ${req.url}`);
-    if (!res.headersSent) {
-      res.status(502).send('Bad Gateway: Target server unavailable');
-    }
-  }
-} as any);
+};
+const proxyMiddleware = createProxyMiddleware(proxyOptions);
 
 // Apply proxy middleware
 app.use(proxyMiddleware);
@@ -357,13 +427,13 @@ app.use((req: Request, res: Response) => {
   res.status(404).send('Not Found');
 });
 
-// Error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+// Error handler - next parameter required by Express error middleware signature
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error(`Server error: ${err.message}`, err.stack);
   res.status(500).json({
     success: false,
     error: 'Internal Server Error',
-    message: config.NODE_ENV === 'production' ? 'An error occurred' : err.message
+    message: config.NODE_ENV === 'production' ? 'An error occurred' : err.message,
   });
 });
 
@@ -404,16 +474,18 @@ function logServerStart(dbConnected: boolean): void {
 }
 
 // Start server
-initializeDatabase().then((dbConnected) => {
-  httpServer.listen(config.PORT, '0.0.0.0', () => {
-    logServerStart(dbConnected);
+initializeDatabase()
+  .then((dbConnected) => {
+    httpServer.listen(config.PORT, '0.0.0.0', () => {
+      logServerStart(dbConnected);
+    });
+  })
+  .catch((error) => {
+    logger.error('Failed to initialize database:', error);
+    // Still start server even if database fails
+    httpServer.listen(config.PORT, '0.0.0.0', () => {
+      logServerStart(false);
+    });
   });
-}).catch((error) => {
-  logger.error('Failed to initialize database:', error);
-  // Still start server even if database fails
-  httpServer.listen(config.PORT, '0.0.0.0', () => {
-    logServerStart(false);
-  });
-});
 
 export default app;

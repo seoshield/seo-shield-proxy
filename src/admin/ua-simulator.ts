@@ -109,7 +109,7 @@ class UASimulator {
       name: 'Googlebot Desktop',
       category: 'searchbot',
       userAgent: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-      description: 'Google\'s main web crawler',
+      description: "Google's main web crawler",
       capabilities: { javascript: true, css: true, images: true, cookies: false },
       popularity: 95,
     },
@@ -117,8 +117,9 @@ class UASimulator {
       id: 'googlebot-mobile',
       name: 'Googlebot Smartphone',
       category: 'searchbot',
-      userAgent: 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-      description: 'Google\'s mobile web crawler',
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      description: "Google's mobile web crawler",
       capabilities: { javascript: true, css: true, images: true, cookies: false },
       popularity: 85,
     },
@@ -135,7 +136,8 @@ class UASimulator {
       id: 'slurp',
       name: 'Yahoo! Slurp',
       category: 'searchbot',
-      userAgent: 'Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)',
+      userAgent:
+        'Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)',
       description: 'Yahoo web crawler',
       capabilities: { javascript: false, css: true, images: true, cookies: false },
       popularity: 60,
@@ -195,7 +197,8 @@ class UASimulator {
       id: 'chrome-desktop',
       name: 'Chrome Desktop',
       category: 'browser',
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
       description: 'Modern Chrome browser',
       capabilities: { javascript: true, css: true, images: true, cookies: true },
       popularity: 70,
@@ -204,7 +207,8 @@ class UASimulator {
       id: 'safari-mobile',
       name: 'Safari Mobile',
       category: 'mobile',
-      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1',
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1',
       description: 'Mobile Safari browser',
       capabilities: { javascript: true, css: true, images: true, cookies: true },
       popularity: 65,
@@ -229,14 +233,14 @@ class UASimulator {
    * Get user agent by ID
    */
   getUserAgent(id: string): UserAgentTemplate | null {
-    return this.userAgents.find(ua => ua.id === id) || null;
+    return this.userAgents.find((ua) => ua.id === id) || null;
   }
 
   /**
    * Get user agents by category
    */
   getUserAgentsByCategory(category: UserAgentTemplate['category']): UserAgentTemplate[] {
-    return this.userAgents.filter(ua => ua.category === category);
+    return this.userAgents.filter((ua) => ua.category === category);
   }
 
   /**
@@ -296,7 +300,7 @@ class UASimulator {
 
         // Capture console logs
         const consoleLogs: Array<{ level: string; message: string; timestamp: number }> = [];
-        page.on('console', msg => {
+        page.on('console', (msg) => {
           consoleLogs.push({
             level: msg.type(),
             message: msg.text(),
@@ -305,7 +309,13 @@ class UASimulator {
         });
 
         // Track network requests
-        const networkRequests: Array<{ url: string; method: string; status: number; size: number; time: number }> = [];
+        const networkRequests: Array<{
+          url: string;
+          method: string;
+          status: number;
+          size: number;
+          time: number;
+        }> = [];
         const resources = {
           totalRequests: 0,
           blockedRequests: 0,
@@ -313,13 +323,13 @@ class UASimulator {
           domains: new Set<string>(),
         };
 
-        page.on('request', req => {
+        page.on('request', (req) => {
           resources.totalRequests++;
           const url = new URL(req.url());
           resources.domains.add(url.hostname);
         });
 
-        page.on('response', res => {
+        page.on('response', (res) => {
           const headers = res.headers();
           const size = parseInt(headers['content-length'] || '0');
 
@@ -376,7 +386,7 @@ class UASimulator {
           memoryUsage: {
             usedJSHeapSize: metrics.JSHeapUsedSize || 0,
             totalJSHeapSize: metrics.JSHeapTotalSize || 0,
-            jsHeapSizeLimit: metrics.JSHeapSizeLimit || 0,
+            jsHeapSizeLimit: (metrics as Record<string, number>).JSHeapSizeLimit || 0,
           },
           resources: {
             totalRequests: resources.totalRequests,
@@ -395,7 +405,6 @@ class UASimulator {
         await this.cacheResult(request);
 
         this.logger.info(`Completed simulation for ${request.url} in ${renderTime}ms`);
-
       } finally {
         await page.close();
       }
@@ -416,14 +425,17 @@ class UASimulator {
   /**
    * Compare two simulations
    */
-  async compareSimulations(request1: SimulationRequest, request2: SimulationRequest): Promise<ComparisonResult> {
+  async compareSimulations(
+    request1: SimulationRequest,
+    request2: SimulationRequest
+  ): Promise<ComparisonResult> {
     if (!request1.result || !request2.result) {
       throw new Error('Both simulations must be completed to compare');
     }
 
     // Simple HTML difference detection
-    const html1 = request1.result.html;
-    const html2 = request2.result.html;
+    const _html1 = request1.result.html;
+    const _html2 = request2.result.html;
 
     // More sophisticated diff could be implemented here
     const htmlDifferences = {
@@ -437,9 +449,9 @@ class UASimulator {
     const domains2 = new Set(request2.result.resources.domains);
 
     const resourceDifferences = {
-      uniqueToFirst: Array.from(domains1).filter(d => !domains2.has(d)),
-      uniqueToSecond: Array.from(domains2).filter(d => !domains1.has(d)),
-      common: Array.from(domains1).filter(d => domains2.has(d)),
+      uniqueToFirst: Array.from(domains1).filter((d) => !domains2.has(d)),
+      uniqueToSecond: Array.from(domains2).filter((d) => !domains1.has(d)),
+      common: Array.from(domains1).filter((d) => domains2.has(d)),
     };
 
     const comparison: ComparisonResult = {
@@ -470,7 +482,7 @@ class UASimulator {
    * Find user agent template by user agent string
    */
   private getUserAgentForUA(userAgent: string): UserAgentTemplate | null {
-    return this.userAgents.find(ua => ua.userAgent === userAgent) || null;
+    return this.userAgents.find((ua) => ua.userAgent === userAgent) || null;
   }
 
   /**
@@ -480,7 +492,7 @@ class UASimulator {
     const active = this.activeSimulations.get(id);
     if (active) return active;
 
-    return this.simulationHistory.find(s => s.id === id) || null;
+    return this.simulationHistory.find((s) => s.id === id) || null;
   }
 
   /**
@@ -523,13 +535,17 @@ class UASimulator {
     }>;
   } {
     const total = this.simulationHistory.length;
-    const successful = this.simulationHistory.filter(s => s.status === 'completed').length;
-    const failed = this.simulationHistory.filter(s => s.status === 'failed').length;
+    const successful = this.simulationHistory.filter((s) => s.status === 'completed').length;
+    const failed = this.simulationHistory.filter((s) => s.status === 'failed').length;
 
-    const completedSimulations = this.simulationHistory.filter(s => s.status === 'completed' && s.result);
-    const averageRenderTime = completedSimulations.length > 0
-      ? completedSimulations.reduce((sum, s) => sum + s.result!.renderTime, 0) / completedSimulations.length
-      : 0;
+    const completedSimulations = this.simulationHistory.filter(
+      (s) => s.status === 'completed' && s.result
+    );
+    const averageRenderTime =
+      completedSimulations.length > 0
+        ? completedSimulations.reduce((sum, s) => sum + s.result!.renderTime, 0) /
+          completedSimulations.length
+        : 0;
 
     // Count user agents
     const uaCounts: Record<string, { count: number; name: string }> = {};

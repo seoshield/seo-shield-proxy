@@ -3,6 +3,10 @@
  * Replaces NodeCache for simpler TTL management
  */
 
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('SimpleCache');
+
 interface CacheEntry {
   value: string;
   expires: number;
@@ -12,7 +16,8 @@ export class SimpleCache {
   private cache = new Map<string, CacheEntry>();
   private defaultTTL: number;
 
-  constructor(ttl: number = 3600000) { // 1 hour default
+  constructor(ttl: number = 3600000) {
+    // 1 hour default
     this.defaultTTL = ttl;
   }
 
@@ -52,18 +57,18 @@ export class SimpleCache {
   get(key: string): string | undefined {
     const entry = this.cache.get(key);
     if (!entry) {
-      console.log(`❌ Cache MISS: ${key}`);
+      logger.debug(`Cache MISS: ${key}`);
       return undefined;
     }
 
     // Check if expired
     if (Date.now() > entry.expires) {
-      console.log(`⏰ Cache EXPIRED: ${key}`);
+      logger.debug(`Cache EXPIRED: ${key}`);
       this.cache.delete(key);
       return undefined;
     }
 
-    console.log(`✅ Cache HIT: ${key}`);
+    logger.debug(`Cache HIT: ${key}`);
     return entry.value;
   }
 
@@ -109,7 +114,7 @@ export class SimpleCache {
     const regex = new RegExp(pattern);
     const now = Date.now();
 
-    return Array.from(this.cache.keys()).filter(key => {
+    return Array.from(this.cache.keys()).filter((key) => {
       const entry = this.cache.get(key);
       return entry && now <= entry.expires && regex.test(key);
     });

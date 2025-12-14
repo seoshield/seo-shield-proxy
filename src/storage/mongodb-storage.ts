@@ -1,4 +1,7 @@
 import { Db, Document } from 'mongodb';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('MongoStorage');
 
 export interface TrafficMetric {
   timestamp: Date;
@@ -71,28 +74,31 @@ export class MongoStorage {
 
   async storeTrafficMetric(metric: TrafficMetric): Promise<void> {
     try {
-      const collection = this.db.collection('traffic');
+      const collection = this.db.collection('traffic_metrics');
       await collection.insertOne(metric);
     } catch (error) {
-      console.error('❌ Failed to store traffic metric:', error);
+      logger.error('Failed to store traffic metric:', error);
     }
   }
 
-  async getTrafficMetrics(limit: number = 100, options: {
-    sortBy?: string;
-    sortOrder?: number;
-    startTime?: Date;
-    endTime?: Date;
-    offset?: number;
-    filters?: {
-      isBot?: boolean;
-      botType?: string;
-      action?: string;
-      path?: string;
-    };
-  } = {}): Promise<TrafficMetric[]> {
+  async getTrafficMetrics(
+    limit: number = 100,
+    options: {
+      sortBy?: string;
+      sortOrder?: number;
+      startTime?: Date;
+      endTime?: Date;
+      offset?: number;
+      filters?: {
+        isBot?: boolean;
+        botType?: string;
+        action?: string;
+        path?: string;
+      };
+    } = {}
+  ): Promise<TrafficMetric[]> {
     try {
-      const collection = this.db.collection('traffic');
+      const collection = this.db.collection('traffic_metrics');
       const query: Document = {};
 
       if (options.startTime || options.endTime) {
@@ -132,9 +138,9 @@ export class MongoStorage {
         cursor = cursor.skip(options.offset);
       }
 
-      return await cursor.toArray() as unknown as TrafficMetric[];
+      return (await cursor.toArray()) as unknown as TrafficMetric[];
     } catch (error) {
-      console.error('❌ Failed to get traffic metrics:', error);
+      logger.error('Failed to get traffic metrics:', error);
       return [];
     }
   }
@@ -145,24 +151,27 @@ export class MongoStorage {
       const auditLog: AuditLog = {
         id: new Date().toISOString(),
         timestamp: new Date(),
-        ...log
+        ...log,
       };
 
       await collection.insertOne(auditLog);
     } catch (error) {
-      console.error('❌ Failed to log audit:', error);
+      logger.error('Failed to log audit:', error);
     }
   }
 
-  async getAuditLogs(limit: number = 100, options: {
-    offset?: number;
-    category?: string;
-    userId?: string;
-    startTime?: Date;
-    endTime?: Date;
-    level?: string;
-    action?: string;
-  } = {}): Promise<AuditLog[]> {
+  async getAuditLogs(
+    limit: number = 100,
+    options: {
+      offset?: number;
+      category?: string;
+      userId?: string;
+      startTime?: Date;
+      endTime?: Date;
+      level?: string;
+      action?: string;
+    } = {}
+  ): Promise<AuditLog[]> {
     try {
       const collection = this.db.collection('audit_logs');
       const query: Document = {};
@@ -200,9 +209,9 @@ export class MongoStorage {
         cursor = cursor.skip(options.offset);
       }
 
-      return await cursor.toArray() as unknown as AuditLog[];
+      return (await cursor.toArray()) as unknown as AuditLog[];
     } catch (error) {
-      console.error('❌ Failed to get audit logs:', error);
+      logger.error('Failed to get audit logs:', error);
       return [];
     }
   }
@@ -213,27 +222,30 @@ export class MongoStorage {
       const errorLog: ErrorLog = {
         id: new Date().toISOString(),
         timestamp: new Date(),
-        resolved: false,
-        ...error
+        ...error,
+        resolved: error.resolved ?? false,
       };
 
       await collection.insertOne(errorLog);
       return errorLog.id;
     } catch (mongoError) {
-      console.error('❌ Failed to log error:', mongoError);
+      logger.error('Failed to log error:', mongoError);
       return '';
     }
   }
 
-  async getErrorLogs(limit: number = 100, options: {
-    offset?: number;
-    severity?: string;
-    category?: string;
-    url?: string;
-    startTime?: Date;
-    endTime?: Date;
-    resolved?: boolean;
-  } = {}): Promise<ErrorLog[]> {
+  async getErrorLogs(
+    limit: number = 100,
+    options: {
+      offset?: number;
+      severity?: string;
+      category?: string;
+      url?: string;
+      startTime?: Date;
+      endTime?: Date;
+      resolved?: boolean;
+    } = {}
+  ): Promise<ErrorLog[]> {
     try {
       const collection = this.db.collection('error_logs');
       const query: Document = {};
@@ -274,9 +286,9 @@ export class MongoStorage {
         cursor = cursor.skip(options.offset);
       }
 
-      return await cursor.toArray() as unknown as ErrorLog[];
+      return (await cursor.toArray()) as unknown as ErrorLog[];
     } catch (error) {
-      console.error('❌ Failed to get error logs:', error);
+      logger.error('Failed to get error logs:', error);
       return [];
     }
   }
@@ -288,7 +300,7 @@ export class MongoStorage {
       const result = await collection.findOne({ key });
       return result ? result.value : null;
     } catch (error) {
-      console.error('❌ Failed to get config:', error);
+      logger.error('Failed to get config:', error);
       return null;
     }
   }
@@ -307,11 +319,11 @@ export class MongoStorage {
             description: description || 'Configuration update',
             version,
             updatedAt: new Date(),
-            userId: userId || 'system'
+            userId: userId || 'system',
           },
           $setOnInsert: {
-            createdAt: new Date()
-          }
+            createdAt: new Date(),
+          },
         },
         { upsert: true }
       );
@@ -324,13 +336,13 @@ export class MongoStorage {
         config,
         createdAt: new Date(),
         createdBy: userId,
-        description
+        description,
       });
 
-      console.log(`💾 Configuration saved as version: ${version}`);
+      logger.info(`Configuration saved as version: ${version}`);
       return version;
     } catch (error) {
-      console.error('❌ Failed to save config:', error);
+      logger.error('Failed to save config:', error);
       throw error;
     }
   }
@@ -344,7 +356,7 @@ export class MongoStorage {
       const stats: any = {
         database: dbStats.db,
         collections: [],
-        totalSize: dbStats.storageSize
+        totalSize: dbStats.storageSize,
       };
 
       for (const collection of collections) {
@@ -353,13 +365,13 @@ export class MongoStorage {
         stats.collections.push({
           name: collection.name,
           count: count,
-          size: 0
+          size: 0,
         });
       }
 
       return stats;
     } catch (error) {
-      console.error('❌ Failed to get database stats:', error);
+      logger.error('Failed to get database stats:', error);
       return {};
     }
   }

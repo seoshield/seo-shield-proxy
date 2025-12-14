@@ -1,5 +1,8 @@
 import rateLimit from 'express-rate-limit';
 import config from '../config';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('RateLimiter');
 
 /**
  * General rate limiter for all requests
@@ -10,7 +13,7 @@ export const generalRateLimiter = rateLimit({
   max: config.NODE_ENV === 'production' ? 1000 : 10000, // Limit each IP
   message: {
     error: 'Too many requests from this IP, please try again later.',
-    retryAfter: '15 minutes'
+    retryAfter: '15 minutes',
   },
   standardHeaders: true, // Return rate limit info in headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -32,7 +35,7 @@ export const ssrRateLimiter = rateLimit({
   max: config.NODE_ENV === 'production' ? 10 : 100, // Very strict for SSR
   message: {
     error: 'Too many rendering requests, please try again later.',
-    retryAfter: '1 minute'
+    retryAfter: '1 minute',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -48,7 +51,7 @@ export const adminRateLimiter = rateLimit({
   max: config.NODE_ENV === 'production' ? 120 : 1000, // 120/min in prod, 1000/min in dev
   message: {
     error: 'Too many admin requests, please try again later.',
-    retryAfter: '1 minute'
+    retryAfter: '1 minute',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -62,10 +65,10 @@ export const adminRateLimiter = rateLimit({
   },
   handler: (req, res, _next) => {
     // Log admin rate limit violations
-    console.warn(`🚨 Admin rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
+    logger.warn(`Admin rate limit exceeded for IP: ${req.ip}, Path: ${req.path}`);
     res.status(429).json({
       error: 'Too many admin requests, please try again later.',
-      retryAfter: '1 minute'
+      retryAfter: '1 minute',
     });
   },
 });
@@ -79,7 +82,7 @@ export const apiRateLimiter = rateLimit({
   max: config.NODE_ENV === 'production' ? 60 : 600, // Per minute
   message: {
     error: 'Too many API requests, please try again later.',
-    retryAfter: '1 minute'
+    retryAfter: '1 minute',
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -94,15 +97,15 @@ export const cacheRateLimiter = rateLimit({
   max: config.NODE_ENV === 'production' ? 20 : 200, // Cache operations
   message: {
     error: 'Too many cache operations, please try again later.',
-    retryAfter: '5 minutes'
+    retryAfter: '5 minutes',
   },
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res, _next) => {
-    console.warn(`🚨 Cache rate limit exceeded for IP: ${req.ip}, Method: ${req.method}`);
+    logger.warn(`Cache rate limit exceeded for IP: ${req.ip}, Method: ${req.method}`);
     res.status(429).json({
       error: 'Too many cache operations, please try again later.',
-      retryAfter: '5 minutes'
+      retryAfter: '5 minutes',
     });
   },
 });

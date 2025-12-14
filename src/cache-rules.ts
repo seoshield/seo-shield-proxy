@@ -1,4 +1,7 @@
 import { Config } from './config';
+import { Logger } from './utils/logger';
+
+const logger = new Logger('CacheRules');
 
 export interface CacheDecision {
   shouldRender: boolean;
@@ -33,15 +36,15 @@ class CacheRules {
     this.metaTagName = (config as Config).CACHE_META_TAG || 'x-seo-shield-cache';
 
     if (!/^[a-zA-Z0-9-_]+$/.test(this.metaTagName)) {
-      console.error(`⚠️  Invalid meta tag name: ${this.metaTagName}, using default`);
+      logger.error(`Invalid meta tag name: ${this.metaTagName}, using default`);
       this.metaTagName = 'x-seo-shield-cache';
     }
 
-    console.log('📋 Cache Rules initialized:');
-    console.log(`   NO_CACHE patterns: ${this.noCachePatterns.length || 'none'}`);
-    console.log(`   CACHE patterns: ${this.cachePatterns.length || 'none'}`);
-    console.log(`   Cache by default: ${this.cacheByDefault}`);
-    console.log(`   Meta tag name: ${this.metaTagName}`);
+    logger.info('Cache Rules initialized:');
+    logger.info(`NO_CACHE patterns: ${this.noCachePatterns.length || 'none'}`);
+    logger.info(`CACHE patterns: ${this.cachePatterns.length || 'none'}`);
+    logger.info(`Cache by default: ${this.cacheByDefault}`);
+    logger.info(`Meta tag name: ${this.metaTagName}`);
   }
 
   private parsePatterns(patterns: string): RegExp[] {
@@ -61,12 +64,10 @@ class CacheRules {
             regex.test('/test');
             return regex;
           }
-          const escaped = p
-            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-            .replace(/\*/g, '.*');
+          const escaped = p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
           return new RegExp(`^${escaped}$`);
         } catch (error) {
-          console.error(`⚠️  Invalid pattern '${p}':`, (error as Error).message);
+          logger.error(`Invalid pattern '${p}':`, (error as Error).message);
           return null;
         }
       })
@@ -121,8 +122,8 @@ class CacheRules {
 
     if (match && match[1]) {
       const shouldCache = match[1].toLowerCase() === 'true';
-      console.log(
-        `🏷️  Meta tag detected: ${this.metaTagName}="${match[1]}" → ${shouldCache ? 'CACHE' : 'NO CACHE'}`
+      logger.info(
+        `Meta tag detected: ${this.metaTagName}="${match[1]}" -> ${shouldCache ? 'CACHE' : 'NO CACHE'}`
       );
       return shouldCache;
     }

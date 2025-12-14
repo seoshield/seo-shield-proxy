@@ -1,0 +1,9 @@
+dist/
+node_modules/
+admin-dashboard/
+coverage/
+*.md
+*.json
+*.yaml
+*.yml
+.env*

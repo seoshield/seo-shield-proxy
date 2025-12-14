@@ -6,7 +6,7 @@
 
 import type { Browser, Page, LaunchOptions } from 'puppeteer';
 
-export interface ClusterOptions<TaskData, TaskResult> {
+export interface ClusterOptions<_TaskData, _TaskResult> {
   concurrency?: number;
   maxConcurrency?: number;
   timeout?: number;
@@ -16,7 +16,7 @@ export interface ClusterOptions<TaskData, TaskResult> {
   monitor?: boolean;
   workerCreationDelay?: number;
   skipDuplicateUrls?: boolean;
- _DUPLICATE_URLS_TO_SKIP?: Set<string>;
+  _DUPLICATE_URLS_TO_SKIP?: Set<string>;
   puppeteer?: typeof import('puppeteer');
   perInstanceOptions?: LaunchOptions;
   concurrencyContext?: any;
@@ -26,7 +26,7 @@ export interface ClusterOptions<TaskData, TaskResult> {
   closeBrowserAfterUse?: boolean;
 }
 
-export interface Task<TaskData, TaskResult> {
+export interface Task<TaskData, _TaskResult> {
   page: Page;
   data: TaskData;
   browser: Browser;
@@ -35,7 +35,9 @@ export interface Task<TaskData, TaskResult> {
   };
 }
 
-export type ClusterTaskFunction<TaskData, TaskResult> = (task: Task<TaskData, TaskResult>) => Promise<TaskResult>;
+export type ClusterTaskFunction<TaskData, TaskResult> = (
+  task: Task<TaskData, TaskResult>
+) => Promise<TaskResult>;
 
 export interface Cluster<TaskData, TaskResult> {
   task: (taskFunction: ClusterTaskFunction<TaskData, TaskResult>) => Promise<void>;
@@ -53,13 +55,17 @@ export interface Cluster<TaskData, TaskResult> {
 }
 
 export declare class ClusterClass {
-  static launch<TaskData, TaskResult>(options: ClusterOptions<TaskData, TaskResult>): Promise<Cluster<TaskData, TaskResult>>;
+  static launch<TaskData, TaskResult>(
+    options: ClusterOptions<TaskData, TaskResult>
+  ): Promise<Cluster<TaskData, TaskResult>>;
 
   static CONCURRENCY_BROWSER: number;
   static CONCURRENCY_CONTEXT: number;
   static CONCURRENCY_PAGE: number;
 }
 
-export declare function Cluster<TaskData, TaskResult>(options?: ClusterOptions<TaskData, TaskResult>): Cluster<TaskData, TaskResult>;
+export declare function Cluster<TaskData, TaskResult>(
+  options?: ClusterOptions<TaskData, TaskResult>
+): Cluster<TaskData, TaskResult>;
 
 export default ClusterClass;

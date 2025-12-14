@@ -1,5 +1,4 @@
 import crypto from 'crypto';
-import { SeoProtocolConfig } from '../config';
 
 /**
  * ETag strategy configuration
@@ -187,7 +186,7 @@ export class ETagManager {
     newHtml: string,
     cachedHash: ContentHash,
     newHash: ContentHash
-  ): { changeType: 'minor' | 'significant' | 'major'; details: any } {
+  ): { changeType: 'minor' | 'significant' | 'major'; details: { wordChanges: number; structuralChanges: number; newImages: number; removedImages: number } } {
     const details = {
       wordChanges: 0,
       structuralChanges: 0,
@@ -223,7 +222,8 @@ export class ETagManager {
     }
 
     // Major changes for significant content weight changes
-    const contentChangeRatio = Math.abs(newHash.contentLength - cachedHash.contentLength) / cachedHash.contentLength;
+    const contentChangeRatio =
+      Math.abs(newHash.contentLength - cachedHash.contentLength) / cachedHash.contentLength;
     if (contentChangeRatio > config.contentWeightThreshold / 100) {
       changeType = 'major';
     }
@@ -261,7 +261,7 @@ export class ETagManager {
     try {
       // Remove ignored elements
       for (const selector of this.config.ignoredElements) {
-        const regex = new RegExp(`<[^>]*${selector}[^>]*>.*?<\/[^>]*${selector}[^>]*>`, 'gis');
+        const regex = new RegExp(`<[^>]*${selector}[^>]*>.*?</[^>]*${selector}[^>]*>`, 'gis');
         content = content.replace(regex, '');
       }
 
@@ -273,7 +273,7 @@ export class ETagManager {
         .replace(/nonce="[^"]*"/gi, 'nonce="[NONCE]"') // Nonce values
         .replace(/csrf-token[^>]*value="[^"]*"/gi, 'csrf-token value="[CSRF]"') // CSRF tokens
         .replace(/session-id[^>]*value="[^"]*"/gi, 'session-id value="[SESSION]"'); // Session IDs
-    } catch (error) {
+    } catch (_error) {
       // If pattern matching fails, return original content
       return html;
     }
@@ -295,7 +295,10 @@ export class ETagManager {
    */
   private countWordChanges(html: string): number {
     // Extract text content and count words
-    const textContent = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const textContent = html
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     return textContent.split(/\s+/).length;
   }
 
@@ -315,13 +318,13 @@ export class ETagManager {
    */
   getCacheControlHeaders(changeType?: 'none' | 'minor' | 'significant' | 'major'): {
     'Cache-Control': string;
-    'ETag': string;
+    ETag: string;
     'Last-Modified': string;
-    'Vary'?: string;
+    Vary?: string;
   } {
-    const headers: any = {
+    const headers: { 'Cache-Control': string; ETag: string; 'Last-Modified': string; Vary?: string } = {
       'Cache-Control': 'public, max-age=3600', // Default 1 hour
-      'ETag': this.generateETag('cache-header', Date.now().toString()),
+      ETag: `"${Date.now().toString(36)}"`, // Simple timestamp-based ETag
       'Last-Modified': new Date().toUTCString(),
     };
 
@@ -383,7 +386,7 @@ export class ETagManager {
       /\.(json|xml|txt|css|js|ico|png|jpg|jpeg|gif|svg|webp)$/i,
     ];
 
-    return !noCachePatterns.some(pattern => pattern.test(url));
+    return !noCachePatterns.some((pattern) => pattern.test(url));
   }
 
   /**
@@ -395,16 +398,7 @@ export class ETagManager {
       hashAlgorithm: 'sha256',
       enable304Responses: true,
       checkContentChanges: true,
-      ignoredElements: [
-        'script',
-        'style',
-        'noscript',
-        'iframe',
-        'svg',
-        'canvas',
-        'video',
-        'audio'
-      ],
+      ignoredElements: ['script', 'style', 'noscript', 'iframe', 'svg', 'canvas', 'video', 'audio'],
       significantChanges: {
         minWordChange: 50,
         minStructureChange: 10,

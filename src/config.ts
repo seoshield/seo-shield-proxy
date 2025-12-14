@@ -1,8 +1,12 @@
 import dotenv from 'dotenv';
 import { CriticalSelector } from './admin/content-health-check';
+import { Logger } from './utils/logger';
 
 // Load environment variables from .env file
 dotenv.config();
+
+// Create logger instance for config module
+const logger = new Logger('Config');
 
 /**
  * Application configuration interface
@@ -96,11 +100,14 @@ export interface SeoProtocolConfig {
     deepSerialization: boolean;
     includeShadowContent: boolean;
     flattenShadowTrees: boolean;
-    customElements: Record<string, {
-      extractMethod: 'slot' | 'attribute' | 'custom';
-      selector?: string;
-      attribute?: string;
-    }>;
+    customElements: Record<
+      string,
+      {
+        extractMethod: 'slot' | 'attribute' | 'custom';
+        selector?: string;
+        attribute?: string;
+      }
+    >;
     preserveShadowBoundaries: boolean;
     extractCSSVariables: boolean;
     extractComputedStyles: boolean;
@@ -310,8 +317,8 @@ export interface RuntimeConfig {
     password: string;
   };
 
-  // General admin settings
-  [key: string]: any;
+  // General admin settings - allows dynamic config values
+  [key: string]: unknown;
 }
 
 /**
@@ -371,12 +378,14 @@ const config: Config = {
   JWT_SECRET: process.env['JWT_SECRET'] || 'seo-shield-jwt-secret-change-in-production',
 
   // User agent for SSR
-  USER_AGENT: process.env['USER_AGENT'] || 'Mozilla/5.0 (compatible; SEOShieldProxy/1.0; +https://github.com/seoshield/seo-shield-proxy)',
+  USER_AGENT:
+    process.env['USER_AGENT'] ||
+    'Mozilla/5.0 (compatible; SEOShieldProxy/1.0; +https://github.com/seoshield/seo-shield-proxy)',
 };
 
 // Validate required configuration
 if (!config.TARGET_URL) {
-  console.error('❌ ERROR: TARGET_URL environment variable is required');
+  logger.error('TARGET_URL environment variable is required');
   if (process.env.NODE_ENV !== 'test') {
     process.exit(1);
   }
@@ -385,8 +394,8 @@ if (!config.TARGET_URL) {
 // Validate TARGET_URL format
 try {
   new URL(config.TARGET_URL);
-} catch (error) {
-  console.error('❌ ERROR: TARGET_URL must be a valid URL (e.g., https://example.com)');
+} catch (_error) {
+  logger.error('TARGET_URL must be a valid URL (e.g., https://example.com)');
   if (process.env.NODE_ENV !== 'test') {
     process.exit(1);
   }
@@ -395,35 +404,35 @@ try {
 // Security warnings for production
 if (config.NODE_ENV === 'production') {
   if (config.ADMIN_PASSWORD === 'admin123') {
-    console.warn('⚠️  SECURITY WARNING: Using default ADMIN_PASSWORD in production!');
-    console.warn('   Set ADMIN_PASSWORD environment variable to a secure password.');
+    logger.warn('SECURITY WARNING: Using default ADMIN_PASSWORD in production!');
+    logger.warn('Set ADMIN_PASSWORD environment variable to a secure password.');
   }
   if (config.JWT_SECRET === 'seo-shield-jwt-secret-change-in-production') {
-    console.warn('⚠️  SECURITY WARNING: Using default JWT_SECRET in production!');
-    console.warn('   Set JWT_SECRET environment variable to a secure random string.');
+    logger.warn('SECURITY WARNING: Using default JWT_SECRET in production!');
+    logger.warn('Set JWT_SECRET environment variable to a secure random string.');
   }
 }
 
 // Log configuration
-console.log('⚙️  Configuration loaded:');
-console.log(`   PORT: ${config.PORT}`);
-console.log(`   TARGET_URL: ${config.TARGET_URL}`);
-console.log(`   CACHE_TYPE: ${config.CACHE_TYPE}`);
+logger.info('Configuration loaded:');
+logger.info(`PORT: ${config.PORT}`);
+logger.info(`TARGET_URL: ${config.TARGET_URL}`);
+logger.info(`CACHE_TYPE: ${config.CACHE_TYPE}`);
 if (config.CACHE_TYPE === 'redis') {
-  console.log(`   REDIS_URL: ${config.REDIS_URL}`);
+  logger.info(`REDIS_URL: ${config.REDIS_URL}`);
 }
-console.log(`   MONGODB_URL: ${config.MONGODB_URL}`);
-console.log(`   MONGODB_DB_NAME: ${config.MONGODB_DB_NAME}`);
-console.log(`   CACHE_TTL: ${config.CACHE_TTL}s`);
-console.log(`   PUPPETEER_TIMEOUT: ${config.PUPPETEER_TIMEOUT}ms`);
-console.log(`   MAX_CONCURRENT_RENDERS: ${config.MAX_CONCURRENT_RENDERS}`);
-console.log(`   NODE_ENV: ${config.NODE_ENV}`);
-console.log(`   CACHE_BY_DEFAULT: ${config.CACHE_BY_DEFAULT}`);
+logger.info(`MONGODB_URL: ${config.MONGODB_URL}`);
+logger.info(`MONGODB_DB_NAME: ${config.MONGODB_DB_NAME}`);
+logger.info(`CACHE_TTL: ${config.CACHE_TTL}s`);
+logger.info(`PUPPETEER_TIMEOUT: ${config.PUPPETEER_TIMEOUT}ms`);
+logger.info(`MAX_CONCURRENT_RENDERS: ${config.MAX_CONCURRENT_RENDERS}`);
+logger.info(`NODE_ENV: ${config.NODE_ENV}`);
+logger.info(`CACHE_BY_DEFAULT: ${config.CACHE_BY_DEFAULT}`);
 if (config.NO_CACHE_PATTERNS) {
-  console.log(`   NO_CACHE_PATTERNS: ${config.NO_CACHE_PATTERNS}`);
+  logger.info(`NO_CACHE_PATTERNS: ${config.NO_CACHE_PATTERNS}`);
 }
 if (config.CACHE_PATTERNS) {
-  console.log(`   CACHE_PATTERNS: ${config.CACHE_PATTERNS}`);
+  logger.info(`CACHE_PATTERNS: ${config.CACHE_PATTERNS}`);
 }
 
 export default config;

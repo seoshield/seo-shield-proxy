@@ -4,6 +4,12 @@
  * Used for real-time monitoring and admin dashboard
  */
 
+interface HealthCheckIssue {
+  type: 'error' | 'warning' | string;
+  selector?: string;
+  message: string;
+}
+
 export interface SSREvent {
   id: string;
   event: 'render_start' | 'render_complete' | 'render_error' | 'health_check';
@@ -20,7 +26,7 @@ export interface SSREvent {
   // Health check specific
   score?: number;
   passed?: boolean;
-  issues?: any[];
+  issues?: HealthCheckIssue[];
 }
 
 export interface SSRStats {
@@ -43,7 +49,7 @@ class SSREventsStore {
     failedRenders: 0,
     activeRenders: 0,
     totalRenderTime: 0,
-    lastRenderTime: 0
+    lastRenderTime: 0,
   };
 
   /**
@@ -103,9 +109,7 @@ class SSREventsStore {
    * Get events by type
    */
   getEventsByType(type: SSREvent['event'], limit: number = 50): SSREvent[] {
-    return this.events
-      .filter(e => e.event === type)
-      .slice(0, limit);
+    return this.events.filter((e) => e.event === type).slice(0, limit);
   }
 
   /**
@@ -119,18 +123,20 @@ class SSREventsStore {
    * Get computed statistics
    */
   getStats(): SSRStats {
-    const successRate = this.stats.totalRenders > 0
-      ? (this.stats.successfulRenders / this.stats.totalRenders) * 100
-      : 0;
+    const successRate =
+      this.stats.totalRenders > 0
+        ? (this.stats.successfulRenders / this.stats.totalRenders) * 100
+        : 0;
 
-    const avgRenderTime = this.stats.successfulRenders > 0
-      ? Math.round(this.stats.totalRenderTime / this.stats.successfulRenders)
-      : 0;
+    const avgRenderTime =
+      this.stats.successfulRenders > 0
+        ? Math.round(this.stats.totalRenderTime / this.stats.successfulRenders)
+        : 0;
 
     return {
       ...this.stats,
       successRate: Math.round(successRate * 100) / 100,
-      avgRenderTime
+      avgRenderTime,
     };
   }
 
@@ -145,7 +151,7 @@ class SSREventsStore {
       failedRenders: 0,
       activeRenders: 0,
       totalRenderTime: 0,
-      lastRenderTime: 0
+      lastRenderTime: 0,
     };
   }
 

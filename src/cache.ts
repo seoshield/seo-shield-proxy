@@ -1,5 +1,5 @@
 import { CacheFactory } from './cache/cache-factory';
-import { ICacheAdapter} from './cache/cache-interface';
+import { ICacheAdapter } from './cache/cache-interface';
 import { MemoryCache } from './cache/memory-cache';
 import { Logger } from './utils/logger';
 
@@ -67,28 +67,28 @@ const cacheProxy = new Proxy({} as ICacheAdapter, {
     if (!cacheInstance) {
       // Cache not ready yet, return safe defaults
       if (prop === 'get' || prop === 'getWithTTL') {
-        return () => undefined;
+        return (): undefined => undefined;
       }
       if (prop === 'set' || prop === 'delete') {
-        return () => false;
+        return (): boolean => false;
       }
       if (prop === 'flush') {
-        return () => {};
+        return (): void => {};
       }
       if (prop === 'getStats') {
-        return () => ({ keys: 0, hits: 0, misses: 0, ksize: 0, vsize: 0 });
+        return (): { keys: number; hits: number; misses: number; ksize: number; vsize: number } => ({ keys: 0, hits: 0, misses: 0, ksize: 0, vsize: 0 });
       }
       if (prop === 'keys') {
-        return () => [];
+        return (): string[] => [];
       }
       if (prop === 'getAllEntries') {
-        return () => [];
+        return (): { url: string; ttl: number }[] => [];
       }
       if (prop === 'isReady') {
-        return () => false;
+        return (): boolean => false;
       }
       if (prop === 'close') {
-        return async () => {};
+        return async (): Promise<void> => {};
       }
       return undefined;
     }

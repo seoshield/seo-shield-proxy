@@ -1,6 +1,9 @@
 import { MongoClient, Db } from 'mongodb';
 import config from '../config';
 import { MongoStorage } from '../storage/mongodb-storage';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('DatabaseManager');
 
 /**
  * Database manager - Handles MongoDB connection and provides access to storage services
@@ -23,7 +26,7 @@ export class DatabaseManager {
 
   async connect(): Promise<boolean> {
     try {
-      console.log('🔄 Connecting to MongoDB...');
+      logger.info('Connecting to MongoDB...');
       this.client = new MongoClient(config.MONGODB_URL);
 
       await this.client.connect();
@@ -34,14 +37,16 @@ export class DatabaseManager {
       await this.db.admin().ping();
 
       this.isConnected = true;
-      console.log(`✅ MongoDB connected successfully: ${config.MONGODB_URL}/${config.MONGODB_DB_NAME}`);
+      logger.info(
+        `MongoDB connected successfully: ${config.MONGODB_URL}/${config.MONGODB_DB_NAME}`
+      );
 
       // Initialize collections with indexes
       await this.initializeIndexes();
 
       return true;
     } catch (error) {
-      console.error('❌ MongoDB connection failed:', (error as Error).message);
+      logger.error('MongoDB connection failed:', (error as Error).message);
       this.isConnected = false;
       this.client = null;
       this.db = null;
@@ -57,7 +62,7 @@ export class DatabaseManager {
       this.db = null;
       this.mongoStorage = null;
       this.isConnected = false;
-      console.log('🔌 MongoDB disconnected');
+      logger.info('MongoDB disconnected');
     }
   }
 
@@ -112,9 +117,9 @@ export class DatabaseManager {
         { key: { url: 1, timestamp: -1 } }, // For URL-specific errors
       ]);
 
-      console.log('✅ MongoDB indexes initialized successfully');
+      logger.info('MongoDB indexes initialized successfully');
     } catch (error) {
-      console.warn('⚠️  Failed to initialize MongoDB indexes:', (error as Error).message);
+      logger.warn('Failed to initialize MongoDB indexes:', (error as Error).message);
     }
   }
 
@@ -134,7 +139,7 @@ export class DatabaseManager {
           storageSize: stats.storageSize,
         },
       };
-    } catch (error) {
+    } catch (_error) {
       return { connected: false };
     }
   }

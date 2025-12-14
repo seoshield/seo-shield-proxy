@@ -115,21 +115,28 @@ class SnapshotService {
         });
 
         // Set user agent to Googlebot for SEO context
-        await page.setUserAgent('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)');
+        await page.setUserAgent(
+          'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
+        );
 
         const startTime = Date.now();
 
         // Navigate to URL
         await page.goto(url, {
           waitUntil: mergedOptions.waitFor as any,
-          timeout: 30000
+          timeout: 30000,
         });
 
         // Wait for any specific selector if provided
-        if (mergedOptions.waitFor && !['load', 'domcontentloaded', 'networkidle0', 'networkidle2'].includes(mergedOptions.waitFor)) {
+        if (
+          mergedOptions.waitFor &&
+          !['load', 'domcontentloaded', 'networkidle0', 'networkidle2'].includes(
+            mergedOptions.waitFor
+          )
+        ) {
           try {
             await page.waitForSelector(mergedOptions.waitFor, { timeout: 5000 });
-          } catch (error) {
+          } catch (_error) {
             this.logger.warn(`Wait selector not found: ${mergedOptions.waitFor}`);
           }
         }
@@ -169,7 +176,6 @@ class SnapshotService {
 
         this.logger.info(`Snapshot captured successfully: ${snapshotId}`);
         return snapshot;
-
       } finally {
         await page.close();
       }
@@ -196,8 +202,14 @@ class SnapshotService {
 
     try {
       // Convert base64 to buffer
-      const beforeScreenshotBuffer = Buffer.from(before.screenshot.replace(/^data:image\/png;base64,/, ''), 'base64');
-      const afterScreenshotBuffer = Buffer.from(after.screenshot.replace(/^data:image\/png;base64,/, ''), 'base64');
+      const beforeScreenshotBuffer = Buffer.from(
+        before.screenshot.replace(/^data:image\/png;base64,/, ''),
+        'base64'
+      );
+      const afterScreenshotBuffer = Buffer.from(
+        after.screenshot.replace(/^data:image\/png;base64,/, ''),
+        'base64'
+      );
 
       // Use sharp to compare images
       const beforeImage = sharp(beforeScreenshotBuffer);
@@ -225,7 +237,7 @@ class SnapshotService {
       const info = {
         width: beforeMeta.width!,
         height: beforeMeta.height!,
-        channels: beforeMeta.channels || 3
+        channels: beforeMeta.channels || 3,
       };
 
       // Calculate diff score (percentage of different pixels)
@@ -240,7 +252,8 @@ class SnapshotService {
           channelDiff += diffData[i + j];
         }
         const avgDiff = channelDiff / channels;
-        if (avgDiff > 30) { // Threshold for considering pixels different
+        if (avgDiff > 30) {
+          // Threshold for considering pixels different
           diffPixels++;
         }
       }
@@ -249,10 +262,12 @@ class SnapshotService {
 
       // Create visual diff image
       const diffImage = await sharp(beforeBuffer)
-        .composite([{
-          input: afterBuffer,
-          blend: 'difference',
-        }])
+        .composite([
+          {
+            input: afterBuffer,
+            blend: 'difference',
+          },
+        ])
         .modulate({
           brightness: 1.5,
           saturation: 1.5,
@@ -290,11 +305,12 @@ class SnapshotService {
           medium: diffScore > 20 && diffScore <= 50 ? ['Moderate visual changes'] : [],
           low: diffScore <= 20 ? ['Minor visual differences'] : [],
         },
-        recommendations: diffScore > 50
-          ? ['Review significant visual changes', 'Consider A/B testing']
-          : diffScore > 20
-          ? ['Monitor changes for impact']
-          : ['Changes appear to be minimal'],
+        recommendations:
+          diffScore > 50
+            ? ['Review significant visual changes', 'Consider A/B testing']
+            : diffScore > 20
+              ? ['Monitor changes for impact']
+              : ['Changes appear to be minimal'],
       };
 
       // Cache the diff result
@@ -302,7 +318,6 @@ class SnapshotService {
 
       this.logger.info(`Comparison completed: ${diffScore}% difference`);
       return diffResult;
-
     } catch (error) {
       this.logger.error('Failed to compare snapshots:', error);
       throw new Error(`Failed to compare snapshots: ${(error as Error).message}`);
@@ -401,7 +416,10 @@ class SnapshotService {
   /**
    * Get all snapshots with pagination
    */
-  async getAllSnapshots(page: number = 1, limit: number = 20): Promise<{
+  async getAllSnapshots(
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{
     snapshots: SnapshotResult[];
     total: number;
     page: number;
@@ -488,7 +506,8 @@ class SnapshotService {
       // Capture normal browser view
       const normalSnapshot = await this.captureSnapshot(url, {
         ...normalOptions,
-        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       });
 
       // Capture bot view (Googlebot)
@@ -507,7 +526,11 @@ class SnapshotService {
       const impact = this.assessSEOImpact(seoComparison, visualDiff.diffScore);
 
       // Generate recommendations
-      const recommendations = this.generateRecommendations(seoComparison, impact, visualDiff.diffScore);
+      const recommendations = this.generateRecommendations(
+        seoComparison,
+        impact,
+        visualDiff.diffScore
+      );
 
       // Create enhanced diff result
       const enhancedDiff: DiffResult = {
@@ -520,7 +543,9 @@ class SnapshotService {
       // Cache the enhanced result
       await this.cacheDiff(enhancedDiff);
 
-      this.logger.info(`Side-by-side comparison completed: ${comparisonId} (SEO issues: ${impact.high.length})`);
+      this.logger.info(
+        `Side-by-side comparison completed: ${comparisonId} (SEO issues: ${impact.high.length})`
+      );
 
       return enhancedDiff;
     } catch (error) {
@@ -541,11 +566,13 @@ class SnapshotService {
 
     const differences = {
       titleDiff: this.extractTitle(normalHTML) !== this.extractTitle(botHTML),
-      metaDescriptionDiff: this.extractMetaDescription(normalHTML) !== this.extractMetaDescription(botHTML),
+      metaDescriptionDiff:
+        this.extractMetaDescription(normalHTML) !== this.extractMetaDescription(botHTML),
       h1Diff: this.extractH1(normalHTML) !== this.extractH1(botHTML),
       canonicalDiff: this.extractCanonical(normalHTML) !== this.extractCanonical(botHTML),
       robotsDiff: this.extractRobots(normalHTML) !== this.extractRobots(botHTML),
-      structuredDataDiff: this.extractStructuredData(normalHTML) !== this.extractStructuredData(botHTML),
+      structuredDataDiff:
+        this.extractStructuredData(normalHTML) !== this.extractStructuredData(botHTML),
       addedElements: [] as string[],
       removedElements: [] as string[],
     };
@@ -616,7 +643,9 @@ class SnapshotService {
     }
 
     if (comparison.renderTimeDiff > 5000) {
-      impact.medium.push(`Significant render time difference (${comparison.renderTimeDiff}ms) - affects performance`);
+      impact.medium.push(
+        `Significant render time difference (${comparison.renderTimeDiff}ms) - affects performance`
+      );
     }
 
     // Low impact issues
@@ -650,7 +679,9 @@ class SnapshotService {
     const recommendations: string[] = [];
 
     if (impact.high.length > 0) {
-      recommendations.push('🔴 URGENT: Fix high-priority SEO differences to maintain search rankings');
+      recommendations.push(
+        '🔴 URGENT: Fix high-priority SEO differences to maintain search rankings'
+      );
     }
 
     if (comparison.htmlDifferences.titleDiff) {
@@ -681,7 +712,8 @@ class SnapshotService {
       recommendations.push('• Significant differences detected - review CSS/JS loading patterns');
     }
 
-    if (recommendations.length === 2) { // Only the urgent message
+    if (recommendations.length === 2) {
+      // Only the urgent message
       recommendations.push('✅ No major SEO issues detected - views are consistent');
     }
 
@@ -695,7 +727,9 @@ class SnapshotService {
   }
 
   private extractMetaDescription(html: string): string {
-    const match = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["'][^>]*>/i);
+    const match = html.match(
+      /<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["'][^>]*>/i
+    );
     return match ? match[1].trim() : '';
   }
 
@@ -716,7 +750,9 @@ class SnapshotService {
 
   private extractStructuredData(html: string): string {
     // Extract JSON-LD structured data
-    const jsonLdMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([^<]+)<\/script>/i);
+    const jsonLdMatch = html.match(
+      /<script[^>]*type=["']application\/ld\+json["'][^>]*>([^<]+)<\/script>/i
+    );
     if (jsonLdMatch) {
       return jsonLdMatch[1].trim();
     }
@@ -819,13 +855,12 @@ class SnapshotService {
       }
 
       const total = comparisons.length;
-      const averageDiffScore = total > 0
-        ? comparisons.reduce((sum, c) => sum + c.diffScore, 0) / total
-        : 0;
+      const averageDiffScore =
+        total > 0 ? comparisons.reduce((sum, c) => sum + c.diffScore, 0) / total : 0;
 
-      const highRiskCount = comparisons.filter(c => c.diffScore > 50).length;
-      const recentCount = comparisons.filter(c =>
-        Date.now() - c.timestamp.getTime() < 24 * 60 * 60 * 1000 // Last 24 hours
+      const highRiskCount = comparisons.filter((c) => c.diffScore > 50).length;
+      const recentCount = comparisons.filter(
+        (c) => Date.now() - c.timestamp.getTime() < 24 * 60 * 60 * 1000 // Last 24 hours
       ).length;
 
       // Analyze common issues

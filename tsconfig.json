@@ -36,15 +36,10 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
 
-    // Type Checking (very relaxed to avoid build errors)
-    "strict": false,
-    "noImplicitAny": false,
-    "strictNullChecks": false,
-    "strictFunctionTypes": false,
-    "strictBindCallApply": false,
-    "strictPropertyInitialization": false,
-    "noImplicitThis": false,
-    "alwaysStrict": true,
+    // Type Checking - strict mode enabled
+    "strict": true,
+    // strict: true includes noImplicitAny, strictNullChecks, strictFunctionTypes,
+    // strictBindCallApply, strictPropertyInitialization, noImplicitThis, alwaysStrict
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noImplicitReturns": false,
@@ -52,8 +47,8 @@
     "noUncheckedIndexedAccess": false,
     "noImplicitOverride": false,
     "noPropertyAccessFromIndexSignature": false,
-        "allowUnreachableCode": true,
-    "allowUnusedLabels": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
 
     // Interop Constraints
     "forceConsistentCasingInFileNames": true,
@@ -74,7 +69,6 @@
     "dist",
     "tests",
     "admin-dashboard",
-    "demo-spa",
-    "src/admin/**/*"
+    "demo-spa"
   ]
 }

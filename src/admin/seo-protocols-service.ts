@@ -1,11 +1,39 @@
 import { SeoProtocolConfig } from '../config';
 import { ContentHealthCheckManager } from './content-health-check';
-import { VirtualScrollManager } from './virtual-scroll-manager';
+import { VirtualScrollManager, VirtualScrollResult } from './virtual-scroll-manager';
 import { ETagManager } from './etag-manager';
 import { ETagService } from './etag-service';
-import { ClusterManager } from './cluster-manager';
+import { ClusterManager, ClusterStats } from './cluster-manager';
 import { ShadowDOMExtractor } from './shadow-dom-extractor';
-import { CircuitBreakerManager } from './circuit-breaker';
+import { CircuitBreakerManager, CircuitState } from './circuit-breaker';
+import { Logger } from '../utils/logger';
+import type { Page } from 'puppeteer';
+
+const logger = new Logger('SEOProtocolsService');
+
+// Type for ETag cache stats
+interface ETagCacheStats {
+  totalEntries: number;
+  cacheHitRate?: number;
+  memoryUsage?: number;
+}
+
+// Type for protocol metrics
+interface ProtocolMetrics {
+  contentHealthCheck?: unknown;
+  virtualScroll?: VirtualScrollResult;
+  etagStrategy?: ETagCacheStats;
+  clusterMode?: ClusterStats;
+  shadowDom?: unknown;
+  circuitBreaker?: Record<string, { state: CircuitState; failures: number; successes: number }>;
+}
+
+// Type for optimization metrics
+interface OptimizationMetrics {
+  virtualScroll?: VirtualScrollResult;
+  shadowDom?: { extractedCount: number };
+  [key: string]: unknown;
+}
 
 /**
  * SEO Protocols Service
@@ -30,50 +58,49 @@ export class SEOProtocolsService {
    * Initialize all SEO protocol services
    */
   async initialize(): Promise<void> {
-    console.log('🚀 Initializing SEO Protocols Service...');
+    logger.info('Initializing SEO Protocols Service...');
 
     try {
       // Initialize Content Health Check
       if (this.config.contentHealthCheck.enabled) {
         this.contentHealthCheck = new ContentHealthCheckManager(this.config.contentHealthCheck);
-        console.log('✅ Content Health Check Manager initialized');
+        logger.info('Content Health Check Manager initialized');
       }
 
       // Initialize Virtual Scroll Manager
       if (this.config.virtualScroll.enabled) {
         this.virtualScrollManager = new VirtualScrollManager(this.config.virtualScroll);
-        console.log('✅ Virtual Scroll Manager initialized');
+        logger.info('Virtual Scroll Manager initialized');
       }
 
       // Initialize ETag Service
       if (this.config.etagStrategy.enabled) {
         this.etagService = ETagService.create(this.config.etagStrategy);
-        console.log('✅ ETag Service initialized');
+        logger.info('ETag Service initialized');
       }
 
       // Initialize Cluster Manager
       if (this.config.clusterMode.enabled) {
         this.clusterManager = new ClusterManager(this.config.clusterMode);
         await this.clusterManager.initialize();
-        console.log('✅ Cluster Manager initialized');
+        logger.info('Cluster Manager initialized');
       }
 
       // Initialize Shadow DOM Extractor
       if (this.config.shadowDom.enabled) {
         this.shadowDOMExtractor = new ShadowDOMExtractor(this.config.shadowDom);
-        console.log('✅ Shadow DOM Extractor initialized');
+        logger.info('Shadow DOM Extractor initialized');
       }
 
       // Initialize Circuit Breaker Manager
       if (this.config.circuitBreaker.enabled) {
         this.circuitBreakerManager = new CircuitBreakerManager(this.config.circuitBreaker);
-        console.log('✅ Circuit Breaker Manager initialized');
+        logger.info('Circuit Breaker Manager initialized');
       }
 
-      console.log('🎉 SEO Protocols Service initialization complete');
-
+      logger.info('SEO Protocols Service initialization complete');
     } catch (error) {
-      console.error('❌ Failed to initialize SEO Protocols Service:', error);
+      logger.error('Failed to initialize SEO Protocols Service:', error);
       throw error;
     }
   }
@@ -132,7 +159,7 @@ export class SEOProtocolsService {
    */
   updateConfig(newConfig: Partial<SeoProtocolConfig>): void {
     this.config = { ...this.config, ...newConfig };
-    console.log('📝 SEO Protocols configuration updated');
+    logger.info('SEO Protocols configuration updated');
   }
 
   /**
@@ -155,30 +182,30 @@ export class SEOProtocolsService {
       protocols: {
         contentHealthCheck: {
           enabled: this.config.contentHealthCheck.enabled,
-          status: this.contentHealthCheck ? 'active' : 'disabled'
+          status: this.contentHealthCheck ? 'active' : 'disabled',
         },
         virtualScroll: {
           enabled: this.config.virtualScroll.enabled,
-          status: this.virtualScrollManager ? 'active' : 'disabled'
+          status: this.virtualScrollManager ? 'active' : 'disabled',
         },
         etagStrategy: {
           enabled: this.config.etagStrategy.enabled,
-          status: this.etagService ? 'active' : 'disabled'
+          status: this.etagService ? 'active' : 'disabled',
         },
         clusterMode: {
           enabled: this.config.clusterMode.enabled,
-          status: this.clusterManager ? 'active' : 'disabled'
+          status: this.clusterManager ? 'active' : 'disabled',
         },
         shadowDom: {
           enabled: this.config.shadowDom.enabled,
-          status: this.shadowDOMExtractor ? 'active' : 'disabled'
+          status: this.shadowDOMExtractor ? 'active' : 'disabled',
         },
         circuitBreaker: {
           enabled: this.config.circuitBreaker.enabled,
-          status: this.circuitBreakerManager ? 'active' : 'disabled'
-        }
+          status: this.circuitBreakerManager ? 'active' : 'disabled',
+        },
       },
-      overall: 'healthy' as 'healthy' | 'degraded' | 'unhealthy'
+      overall: 'healthy' as 'healthy' | 'degraded' | 'unhealthy',
     };
 
     // Check circuit breaker health if enabled
@@ -197,15 +224,8 @@ export class SEOProtocolsService {
   /**
    * Get performance metrics from all protocols
    */
-  async getMetrics(): Promise<{
-    contentHealthCheck?: any;
-    virtualScroll?: any;
-    etagStrategy?: any;
-    clusterMode?: any;
-    shadowDom?: any;
-    circuitBreaker?: any;
-  }> {
-    const metrics: any = {};
+  async getMetrics(): Promise<ProtocolMetrics> {
+    const metrics: ProtocolMetrics = {};
 
     // Get ETag metrics
     if (this.etagService) {
@@ -229,25 +249,24 @@ export class SEOProtocolsService {
    * Graceful shutdown of all protocols
    */
   async shutdown(): Promise<void> {
-    console.log('🛑 Shutting down SEO Protocols Service...');
+    logger.info('Shutting down SEO Protocols Service...');
 
     try {
       // Shutdown Cluster Manager
       if (this.clusterManager) {
         await this.clusterManager.shutdown();
-        console.log('✅ Cluster Manager shutdown');
+        logger.info('Cluster Manager shutdown');
       }
 
       // Cleanup ETag cache
       if (this.etagService) {
         this.etagService.cleanupCache();
-        console.log('✅ ETag Service cache cleaned');
+        logger.info('ETag Service cache cleaned');
       }
 
-      console.log('🎉 SEO Protocols Service shutdown complete');
-
+      logger.info('SEO Protocols Service shutdown complete');
     } catch (error) {
-      console.error('❌ Error during SEO Protocols Service shutdown:', error);
+      logger.error('Error during SEO Protocols Service shutdown:', error);
       throw error;
     }
   }
@@ -258,23 +277,26 @@ export class SEOProtocolsService {
   async applyOptimizations(params: {
     url: string;
     html: string;
-    page: any; // Puppeteer Page
+    page: Page;
   }): Promise<{
     html: string;
     optimizations: string[];
-    metrics: any;
+    metrics: OptimizationMetrics;
     warnings: string[];
   }> {
     const optimizations: string[] = [];
     const warnings: string[] = [];
     let finalHtml = params.html;
-    const metrics: any = {};
+    const metrics: OptimizationMetrics = {};
 
     try {
       // Apply Virtual Scroll if enabled
       if (this.virtualScrollManager && params.page) {
         try {
-          const scrollResult = await this.virtualScrollManager.triggerVirtualScroll(params.page, params.url);
+          const scrollResult = await this.virtualScrollManager.triggerVirtualScroll(
+            params.page,
+            params.url
+          );
           if (scrollResult.success) {
             finalHtml = await params.page.content();
             optimizations.push(`Virtual scroll: ${scrollResult.completionRate}% completion`);
@@ -283,7 +305,9 @@ export class SEOProtocolsService {
             warnings.push('Virtual scroll failed');
           }
         } catch (error) {
-          warnings.push(`Virtual scroll error: ${error instanceof Error ? error.message : 'Unknown'}`);
+          warnings.push(
+            `Virtual scroll error: ${error instanceof Error ? error.message : 'Unknown'}`
+          );
         }
       }
 
@@ -293,18 +317,25 @@ export class SEOProtocolsService {
           const shadowResult = await this.shadowDOMExtractor.extractCompleteContent(params.page);
           if (shadowResult.stats.totalShadowRoots > 0) {
             finalHtml = shadowResult.flattened;
-            optimizations.push(`Shadow DOM: ${shadowResult.stats.totalShadowRoots} roots processed`);
+            optimizations.push(
+              `Shadow DOM: ${shadowResult.stats.totalShadowRoots} roots processed`
+            );
             metrics.shadowDOM = shadowResult;
           }
         } catch (error) {
-          warnings.push(`Shadow DOM extraction error: ${error instanceof Error ? error.message : 'Unknown'}`);
+          warnings.push(
+            `Shadow DOM extraction error: ${error instanceof Error ? error.message : 'Unknown'}`
+          );
         }
       }
 
       // Apply Content Health Check if enabled
       if (this.contentHealthCheck && params.page) {
         try {
-          const healthResult = await this.contentHealthCheck.checkPageHealth(params.page, params.url);
+          const healthResult = await this.contentHealthCheck.checkPageHealth(
+            params.page,
+            params.url
+          );
           if (healthResult.passed) {
             optimizations.push(`Health check: ${healthResult.score}/100 score`);
           } else {
@@ -312,7 +343,9 @@ export class SEOProtocolsService {
           }
           metrics.contentHealthCheck = healthResult;
         } catch (error) {
-          warnings.push(`Health check error: ${error instanceof Error ? error.message : 'Unknown'}`);
+          warnings.push(
+            `Health check error: ${error instanceof Error ? error.message : 'Unknown'}`
+          );
         }
       }
 
@@ -320,11 +353,12 @@ export class SEOProtocolsService {
         html: finalHtml,
         optimizations,
         metrics,
-        warnings
+        warnings,
       };
-
     } catch (error) {
-      throw new Error(`SEO optimization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `SEO optimization failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
@@ -336,11 +370,16 @@ export class SEOProtocolsService {
       contentHealthCheck: {
         enabled: true,
         criticalSelectors: [
-            { selector: 'title', type: 'title', required: true, description: 'Page title' },
-            { selector: 'meta[name="description"]', type: 'meta', required: true, description: 'Meta description' },
-            { selector: 'h1', type: 'h1', required: true, description: 'H1 heading' },
-            { selector: 'body', type: 'custom', required: true, description: 'Body content' }
-          ],
+          { selector: 'title', type: 'title', required: true, description: 'Page title' },
+          {
+            selector: 'meta[name="description"]',
+            type: 'meta',
+            required: true,
+            description: 'Meta description',
+          },
+          { selector: 'h1', type: 'h1', required: true, description: 'H1 heading' },
+          { selector: 'body', type: 'custom', required: true, description: 'Body content' },
+        ],
         minBodyLength: 500,
         minTitleLength: 30,
         metaDescriptionRequired: true,
@@ -362,12 +401,13 @@ let seoProtocolsService: SEOProtocolsService | null = null;
 /**
  * Get or create SEO Protocols Service singleton
  */
-export function getSEOProtocolsService(config?: SeoProtocolConfig): SEOProtocolsService {
+export function getSEOProtocolsService(config?: Partial<SeoProtocolConfig>): SEOProtocolsService {
   if (!seoProtocolsService) {
-    if (!config) {
-      config = SEOProtocolsService.getDefaultConfig();
-    }
-    seoProtocolsService = new SEOProtocolsService(config);
+    const defaultConfig = SEOProtocolsService.getDefaultConfig();
+    const mergedConfig: SeoProtocolConfig = config
+      ? { ...defaultConfig, ...config } as SeoProtocolConfig
+      : defaultConfig;
+    seoProtocolsService = new SEOProtocolsService(mergedConfig);
   }
   return seoProtocolsService;
 }

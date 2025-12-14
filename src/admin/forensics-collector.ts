@@ -3,9 +3,19 @@
  * Captures detailed information about failed renders for debugging
  */
 
-import browserManager from '../browser';
 import cache from '../cache';
 import { Logger } from '../utils/logger';
+import type { Page } from 'puppeteer';
+
+// Type for render context passed to forensics collector
+interface RenderContext {
+  userAgent?: string;
+  viewport?: { width: number; height: number };
+  headers?: Record<string, string>;
+  waitStrategy?: string;
+  timeout?: number;
+  startTime?: number;
+}
 
 interface ConsoleLog {
   timestamp: number;
@@ -91,8 +101,8 @@ class ForensicsCollector {
   async captureForensics(
     url: string,
     error: Error,
-    context: any,
-    page?: any // Puppeteer page object
+    context: RenderContext,
+    page?: Page
   ): Promise<RenderError> {
     const errorId = `forensics_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -132,7 +142,7 @@ class ForensicsCollector {
         forensicsError.memoryUsage = {
           usedJSHeapSize: metrics.JSHeapUsedSize || 0,
           totalJSHeapSize: metrics.JSHeapTotalSize || 0,
-          jsHeapSizeLimit: metrics.JSHeapSizeLimit || 0,
+          jsHeapSizeLimit: (metrics as Record<string, number>).JSHeapSizeLimit || 0,
         };
       } catch (captureError) {
         this.logger.warn('Failed to capture some forensic data:', captureError);
@@ -178,7 +188,11 @@ class ForensicsCollector {
       };
     }
 
-    if (message.includes('network') || message.includes('connection') || message.includes('fetch')) {
+    if (
+      message.includes('network') ||
+      message.includes('connection') ||
+      message.includes('fetch')
+    ) {
       return {
         message: error.message,
         type: 'network',
@@ -204,19 +218,19 @@ class ForensicsCollector {
   /**
    * Capture console logs from the page
    */
-  private async captureConsoleLogs(page: any): Promise<ConsoleLog[]> {
+  private async captureConsoleLogs(page: Page): Promise<ConsoleLog[]> {
     const logs: ConsoleLog[] = [];
 
     try {
       const pageLogs = await page.evaluate(() => {
-        // @ts-ignore - Running in browser context
-        return (globalThis as any).__seoShieldConsoleLogs || [];
+        // Browser context - accessing injected console logs
+        return (window as Window & { __seoShieldConsoleLogs?: Array<{ timestamp?: number; level?: string; text?: string; url?: string; line?: number; column?: number }> }).__seoShieldConsoleLogs || [];
       });
 
       for (const log of pageLogs) {
         logs.push({
           timestamp: log.timestamp || Date.now(),
-          level: log.level || 'log',
+          level: (log.level as ConsoleLog['level']) || 'log',
           text: log.text || '',
           url: log.url,
           line: log.line,
@@ -233,15 +247,15 @@ class ForensicsCollector {
   /**
    * Capture network activity
    */
-  private async captureNetworkActivity(page: any): Promise<NetworkRequest[]> {
+  private async captureNetworkActivity(page: Page): Promise<NetworkRequest[]> {
     const requests: NetworkRequest[] = [];
 
     try {
       // Get network logs from Puppeteer
       const performanceEntries = await page.evaluate(() => {
-        return (performance as any).getEntriesByType('navigation').concat(
-          (performance as any).getEntriesByType('resource')
-        );
+        return performance
+          .getEntriesByType('navigation')
+          .concat(performance.getEntriesByType('resource')) as Array<PerformanceResourceTiming>;
       });
 
       for (const entry of performanceEntries) {
@@ -261,10 +275,21 @@ class ForensicsCollector {
 
       // Try to get failed requests from Puppeteer
       try {
+        interface FailedRequestEntry {
+          timestamp?: number;
+          url?: string;
+          method?: string;
+          status?: number;
+          statusText?: string;
+          resourceType?: string;
+          time?: number;
+          errorText?: string;
+          errorType?: string;
+        }
         const failedRequests = await page.evaluate(() => {
-          // @ts-ignore - Running in browser context
-          return (globalThis as any).__seoShieldFailedRequests || [];
-        });
+          // Browser context - accessing injected failed requests
+          return (window as Window & { __seoShieldFailedRequests?: FailedRequestEntry[] }).__seoShieldFailedRequests || [];
+        }) as FailedRequestEntry[];
 
         for (const failed of failedRequests) {
           requests.push({
@@ -295,7 +320,7 @@ class ForensicsCollector {
   /**
    * Capture screenshot of error state
    */
-  private async captureErrorScreenshot(page: any): Promise<string> {
+  private async captureErrorScreenshot(page: Page): Promise<string> {
     try {
       const screenshot = await page.screenshot({
         fullPage: true,
@@ -354,7 +379,7 @@ class ForensicsCollector {
     for (const pattern of patterns) {
       if (
         (pattern.type === 'error' && pattern.pattern.test(error.error.message)) ||
-        (pattern.type === 'console' && error.console.some(log => pattern.pattern.test(log.text)))
+        (pattern.type === 'console' && error.console.some((log) => pattern.pattern.test(log.text)))
       ) {
         const existingPattern = this.patterns.get(pattern.id);
         if (existingPattern) {
@@ -376,7 +401,10 @@ class ForensicsCollector {
   /**
    * Get all errors with pagination
    */
-  async getErrors(page: number = 1, limit: number = 50): Promise<{
+  async getErrors(
+    page: number = 1,
+    limit: number = 50
+  ): Promise<{
     errors: RenderError[];
     total: number;
     page: number;
@@ -457,7 +485,7 @@ class ForensicsCollector {
 
       const stats: ForensicsStats = {
         totalErrors: errors.length,
-        todayErrors: errors.filter(e => new Date(e.timestamp) >= today).length,
+        todayErrors: errors.filter((e) => new Date(e.timestamp) >= today).length,
         errorsByType: {},
         topErrorUrls: [],
         detectedPatterns: Array.from(this.patterns.values()),
@@ -534,9 +562,7 @@ class ForensicsCollector {
   async getErrorsByUrl(url: string, limit: number = 20): Promise<RenderError[]> {
     try {
       const { errors } = await this.getErrors(1, 1000);
-      return errors
-        .filter(error => error.url === url)
-        .slice(0, limit);
+      return errors.filter((error) => error.url === url).slice(0, limit);
     } catch (error) {
       this.logger.error('Failed to get errors by URL:', error);
       return [];

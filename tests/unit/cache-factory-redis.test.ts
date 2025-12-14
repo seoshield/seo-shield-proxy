@@ -379,7 +379,7 @@ describe('CacheFactory Redis Error', () => {
   it('should fallback to memory cache when Redis throws error', async () => {
     redisShouldThrow = true;
 
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { CacheFactory } = await import('../../src/cache/cache-factory');
@@ -389,10 +389,18 @@ describe('CacheFactory Redis Error', () => {
     expect(cache).toBeDefined();
     expect(cache.isReady()).toBe(true);
 
-    expect(errorSpy).toHaveBeenCalledWith('❌ Redis cache creation failed:', 'Redis connection failed');
-    expect(logSpy).toHaveBeenCalledWith('🔄 Falling back to memory cache');
+    // Logger uses timestamp format: [timestamp] [LEVEL] [Context] message
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[ERROR]'),
+      expect.stringContaining('Redis cache creation failed'),
+      'Redis connection failed'
+    );
+    expect(infoSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[INFO]'),
+      expect.stringContaining('Falling back to memory cache')
+    );
 
-    logSpy.mockRestore();
+    infoSpy.mockRestore();
     errorSpy.mockRestore();
     redisShouldThrow = false;
   });

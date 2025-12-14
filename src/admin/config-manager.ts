@@ -6,6 +6,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('ConfigManager');
 
 // For CommonJS compatibility, use process.cwd() and resolve path
 const CONFIG_FILE = path.join(process.cwd(), 'src', 'admin', 'runtime-config.json');
@@ -24,7 +27,7 @@ const getAdminPassword = (): string => {
   // In production, warn about using generated password
   if (process.env.NODE_ENV === 'production') {
     const generatedPassword = generateSecurePassword();
-    console.warn('⚠️  No ADMIN_CONFIG_PASSWORD set, using generated password:', generatedPassword);
+    logger.warn('No ADMIN_CONFIG_PASSWORD set, using generated password:', generatedPassword);
     return generatedPassword;
   }
   // In development, use a default (still warn)
@@ -154,8 +157,8 @@ class ConfigManager {
     try {
       await fs.access(CONFIG_FILE);
       await this.loadConfig();
-    } catch (error) {
-      console.log('📝 Creating default runtime-config.json');
+    } catch (_error) {
+      logger.info('Creating default runtime-config.json');
       await this.saveConfig(this.defaultConfig);
       this.config = this.defaultConfig;
     }
@@ -168,10 +171,10 @@ class ConfigManager {
     try {
       const data = await fs.readFile(CONFIG_FILE, 'utf-8');
       this.config = JSON.parse(data) as RuntimeConfig;
-      console.log('✅ Runtime configuration loaded');
+      logger.info('Runtime configuration loaded');
       return this.config;
     } catch (error) {
-      console.error('❌ Error loading runtime config:', (error as Error).message);
+      logger.error('Error loading runtime config:', (error as Error).message);
       this.config = this.defaultConfig;
       return this.config;
     }
@@ -193,16 +196,16 @@ class ConfigManager {
           await fs.writeFile(backupFile, JSON.stringify(this.config, null, 2), 'utf-8');
         }
       } catch (backupError) {
-        console.warn('⚠️  Could not create config backup:', (backupError as Error).message);
+        logger.warn('Could not create config backup:', (backupError as Error).message);
       }
 
       const data = JSON.stringify(config, null, 2);
       await fs.writeFile(CONFIG_FILE, data, 'utf-8');
       this.config = config;
-      console.log('💾 Runtime configuration saved');
+      logger.info('Runtime configuration saved');
       return true;
     } catch (error) {
-      console.error('❌ Error saving runtime config:', (error as Error).message);
+      logger.error('Error saving runtime config:', (error as Error).message);
       return false;
     }
   }
@@ -244,7 +247,10 @@ class ConfigManager {
   /**
    * Add a cache pattern
    */
-  async addCachePattern(pattern: string, type: 'noCache' | 'cache' = 'noCache'): Promise<RuntimeConfig> {
+  async addCachePattern(
+    pattern: string,
+    type: 'noCache' | 'cache' = 'noCache'
+  ): Promise<RuntimeConfig> {
     const config = this.getConfig();
 
     if (type === 'noCache') {
@@ -266,7 +272,10 @@ class ConfigManager {
   /**
    * Remove a cache pattern
    */
-  async removeCachePattern(pattern: string, type: 'noCache' | 'cache' = 'noCache'): Promise<RuntimeConfig> {
+  async removeCachePattern(
+    pattern: string,
+    type: 'noCache' | 'cache' = 'noCache'
+  ): Promise<RuntimeConfig> {
     const config = this.getConfig();
 
     if (type === 'noCache') {
@@ -355,7 +364,7 @@ const configManager = new ConfigManager();
 
 // Initialize on import
 configManager.initialize().catch((error) => {
-  console.error('Failed to initialize config manager:', error);
+  logger.error('Failed to initialize config manager:', error);
 });
 
 export default configManager;

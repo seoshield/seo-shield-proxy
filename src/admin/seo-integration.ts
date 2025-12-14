@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { getSEOProtocolsService } from './seo-protocols-service';
+import { getSEOProtocolsService, SEOProtocolsService } from './seo-protocols-service';
+import { Logger } from '../utils/logger';
+import { SeoProtocolConfig } from '../config';
+
+const logger = new Logger('SEOIntegration');
 
 /**
  * SEO Protocols Integration Middleware
@@ -26,7 +30,7 @@ export function seoOptimizationMiddleware() {
     let htmlContent = '';
 
     // Override res.write to capture content
-    res.write = function(chunk: any) {
+    res.write = function (chunk: Buffer | string) {
       if (typeof chunk === 'string') {
         htmlContent += chunk;
       } else if (Buffer.isBuffer(chunk)) {
@@ -36,7 +40,7 @@ export function seoOptimizationMiddleware() {
     };
 
     // Override res.end to apply SEO optimizations
-    res.end = function(chunk?: any, encoding?: any) {
+    (res.end as Function) = function (chunk?: Buffer | string, encoding?: BufferEncoding): Response {
       if (chunk) {
         if (typeof chunk === 'string') {
           htmlContent += chunk;
@@ -48,7 +52,10 @@ export function seoOptimizationMiddleware() {
       // Apply SEO optimizations
       applySEOOptimizations(req, res, htmlContent, seoService);
 
-      return originalEnd(chunk, encoding);
+      if (encoding) {
+        return originalEnd(chunk, encoding);
+      }
+      return originalEnd(chunk);
     };
 
     next();
@@ -87,7 +94,7 @@ export function circuitBreakerMiddleware(operationName: string) {
       const result = await circuitBreaker.execute(async () => {
         return new Promise((resolve, reject) => {
           const originalNext = next;
-          next = (error?: any) => {
+          next = (error?: unknown) => {
             if (error) {
               reject(error);
             } else {
@@ -104,7 +111,7 @@ export function circuitBreakerMiddleware(operationName: string) {
         res.status(503).json({
           error: 'Service temporarily unavailable',
           message: 'Circuit breaker is open',
-          retryAfter: circuitBreaker.getTimeUntilNextRetry()
+          retryAfter: circuitBreaker.getTimeUntilNextRetry(),
         });
       }
     } catch (error) {
@@ -116,12 +123,7 @@ export function circuitBreakerMiddleware(operationName: string) {
 /**
  * Apply SEO optimizations to response
  */
-async function applySEOOptimizations(
-  req: Request,
-  res: Response,
-  html: string,
-  seoService: any
-) {
+async function applySEOOptimizations(req: Request, res: Response, html: string, seoService: SEOProtocolsService) {
   try {
     // Get ETag headers if enabled
     const etagService = seoService.getETagService();
@@ -136,19 +138,18 @@ async function applySEOOptimizations(
     const shadowDOMExtractor = seoService.getShadowDOMExtractor();
     if (shadowDOMExtractor) {
       // Note: This would need page access, so it's mainly for browser-based optimizations
-      console.log(`📝 SEO optimizations applied for ${req.url}`);
+      logger.debug(`SEO optimizations applied for ${req.url}`);
     }
 
     // Log optimization summary
     const status = await seoService.getStatus();
     if (status.overall === 'healthy') {
-      console.log(`✅ SEO protocols healthy for ${req.url}`);
+      logger.debug(`SEO protocols healthy for ${req.url}`);
     } else {
-      console.warn(`⚠️ SEO protocols status: ${status.overall} for ${req.url}`);
+      logger.warn(`SEO protocols status: ${status.overall} for ${req.url}`);
     }
-
   } catch (error) {
-    console.error(`❌ SEO optimization error for ${req.url}:`, error);
+    logger.error(`SEO optimization error for ${req.url}:`, error);
   }
 }
 
@@ -167,12 +168,12 @@ export function seoStatusEndpoint() {
         success: true,
         status,
         metrics,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   };
@@ -191,12 +192,12 @@ export function seoConfigEndpoint() {
         res.json({
           success: true,
           config,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       } catch (error) {
         res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     },
@@ -210,15 +211,15 @@ export function seoConfigEndpoint() {
           success: true,
           message: 'Configuration updated successfully',
           config: seoService.getConfig(),
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       } catch (error) {
         res.status(500).json({
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
         });
       }
-    }
+    },
   };
 }
 
@@ -226,27 +227,27 @@ export function seoConfigEndpoint() {
  * Initialize SEO protocols service
  * Call this during server startup
  */
-export async function initializeSEOProtocols(config?: any) {
+export async function initializeSEOProtocols(config?: Partial<SeoProtocolConfig>) {
   try {
     const seoService = getSEOProtocolsService(config);
     await seoService.initialize();
 
-    console.log('🎉 SEO Protocols Service initialized successfully');
+    logger.info('SEO Protocols Service initialized successfully');
 
     // Set up graceful shutdown
     process.on('SIGTERM', async () => {
-      console.log('🛑 Shutting down SEO protocols...');
+      logger.info('Shutting down SEO protocols...');
       await seoService.shutdown();
     });
 
     process.on('SIGINT', async () => {
-      console.log('🛑 Shutting down SEO protocols...');
+      logger.info('Shutting down SEO protocols...');
       await seoService.shutdown();
     });
 
     return seoService;
   } catch (error) {
-    console.error('❌ Failed to initialize SEO Protocols Service:', error);
+    logger.error('Failed to initialize SEO Protocols Service:', error);
     throw error;
   }
 }
@@ -263,7 +264,7 @@ export function seoMonitoringMiddleware() {
 
     // Continue with request
     const originalEnd = res.end.bind(res);
-    res.end = function(chunk?: any, encoding?: any) {
+    (res.end as Function) = function (chunk?: Buffer | string, encoding?: BufferEncoding): Response {
       const duration = Date.now() - startTime;
 
       // Log SEO metrics for bot requests
@@ -271,7 +272,10 @@ export function seoMonitoringMiddleware() {
         logSEOMetrics(req, duration, seoService);
       }
 
-      return originalEnd(chunk, encoding);
+      if (encoding) {
+        return originalEnd(chunk, encoding);
+      }
+      return originalEnd(chunk);
     };
 
     next();
@@ -281,17 +285,21 @@ export function seoMonitoringMiddleware() {
 /**
  * Log SEO performance metrics
  */
-function logSEOMetrics(req: Request, duration: number, seoService: any) {
-  console.log(`📊 SEO Request: ${req.method} ${req.url} - ${duration}ms`);
+function logSEOMetrics(req: Request, duration: number, seoService: SEOProtocolsService) {
+  logger.debug(`SEO Request: ${req.method} ${req.url} - ${duration}ms`);
 
   // Log protocol status periodically
-  if (Math.random() < 0.1) { // Log 10% of requests to avoid spam
-    seoService.getStatus().then((status: any) => {
-      if (status.overall !== 'healthy') {
-        console.warn(`⚠️ SEO Protocols Status: ${status.overall}`);
-      }
-    }).catch(() => {
-      // Ignore errors in monitoring
-    });
+  if (Math.random() < 0.1) {
+    // Log 10% of requests to avoid spam
+    seoService
+      .getStatus()
+      .then((status: { overall: 'healthy' | 'degraded' | 'unhealthy' }) => {
+        if (status.overall !== 'healthy') {
+          logger.warn(`SEO Protocols Status: ${status.overall}`);
+        }
+      })
+      .catch(() => {
+        // Ignore errors in monitoring
+      });
   }
 }

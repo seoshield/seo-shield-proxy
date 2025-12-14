@@ -1,7 +1,9 @@
 import { Queue, Worker, Job, QueueEvents } from 'bullmq';
 import { Redis } from 'ioredis';
-import puppeteer, { Browser, Page } from 'puppeteer';
-import { SeoProtocolConfig } from '../config';
+import puppeteer, { Browser } from 'puppeteer';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('ClusterManager');
 
 /**
  * Render job definition
@@ -135,12 +137,12 @@ export class ClusterManager {
     }
 
     if (!this.config.enabled) {
-      console.log('🔧 Cluster Mode is disabled');
+      logger.info('Cluster Mode is disabled');
       return;
     }
 
     try {
-      console.log(`🚀 Initializing Cluster Mode with ${this.config.maxWorkers} workers...`);
+      logger.info(`Initializing Cluster Mode with ${this.config.maxWorkers} workers...`);
 
       // Initialize Redis connection if using Redis queue
       if (this.config.useRedisQueue) {
@@ -154,10 +156,9 @@ export class ClusterManager {
       }
 
       this.isInitialized = true;
-      console.log('✅ Cluster Manager initialized successfully');
-
+      logger.info('Cluster Manager initialized successfully');
     } catch (error) {
-      console.error('❌ Failed to initialize Cluster Manager:', error);
+      logger.error('Failed to initialize Cluster Manager:', error);
       throw error;
     }
   }
@@ -181,7 +182,7 @@ export class ClusterManager {
 
     // Test connection
     await this.redisConnection.ping();
-    console.log(`🔗 Connected to Redis at ${redisConfig.host}:${redisConfig.port}`);
+    logger.info(`Connected to Redis at ${redisConfig.host}:${redisConfig.port}`);
   }
 
   /**
@@ -206,7 +207,7 @@ export class ClusterManager {
       },
     });
 
-    console.log('📋 BullMQ queue initialized');
+    logger.info('BullMQ queue initialized');
   }
 
   /**
@@ -239,21 +240,21 @@ export class ClusterManager {
 
       // Handle worker events
       worker.on('completed', (job) => {
-        console.log(`✅ Worker ${workerId} completed job ${job.id}`);
+        logger.debug(`Worker ${workerId} completed job ${job.id}`);
       });
 
       worker.on('failed', (job, err) => {
-        console.error(`❌ Worker ${workerId} failed job ${job?.id}:`, err.message);
+        logger.error(`Worker ${workerId} failed job ${job?.id}:`, err.message);
       });
 
       worker.on('error', (err) => {
-        console.error(`💥 Worker ${workerId} error:`, err);
+        logger.error(`Worker ${workerId} error:`, err);
       });
 
       this.workers.push(worker);
     }
 
-    console.log(`👷 Created ${this.config.maxWorkers} render workers`);
+    logger.info(`Created ${this.config.maxWorkers} render workers`);
   }
 
   /**
@@ -268,26 +269,26 @@ export class ClusterManager {
       connection: this.redisConnection,
     });
 
-    this.queueEvents.on('completed', ({ jobId, returnvalue }) => {
-      console.log(`🎉 Job ${jobId} completed successfully`);
+    this.queueEvents.on('completed', ({ jobId, returnvalue: _returnvalue }) => {
+      logger.debug(`Job ${jobId} completed successfully`);
     });
 
     this.queueEvents.on('failed', ({ jobId, failedReason }) => {
-      console.error(`💥 Job ${jobId} failed: ${failedReason}`);
+      logger.error(`Job ${jobId} failed: ${failedReason}`);
     });
 
     this.queueEvents.on('progress', ({ jobId, data }) => {
-      console.log(`📊 Job ${jobId} progress:`, data);
+      logger.debug(`Job ${jobId} progress:`, data);
     });
 
-    console.log('📡 Queue events listener initialized');
+    logger.info('Queue events listener initialized');
   }
 
   /**
    * Initialize in-memory cluster (fallback mode)
    */
   private async initializeInMemoryCluster(): Promise<void> {
-    console.log('🧠 Initializing in-memory cluster mode (no Redis)');
+    logger.info('Initializing in-memory cluster mode (no Redis)');
     // In-memory mode would use the existing puppeteer-cluster
     // This is a fallback when Redis is not available
   }
@@ -302,7 +303,7 @@ export class ClusterManager {
       defaultViewport: this.config.browser.defaultViewport,
     });
 
-    console.log('🌐 Browser instance initialized for cluster workers');
+    logger.info('Browser instance initialized for cluster workers');
   }
 
   /**
@@ -313,9 +314,9 @@ export class ClusterManager {
     workerId: string
   ): Promise<RenderJobResult> {
     const startTime = Date.now();
-    const { url, options, metadata } = job.data;
+    const { url, options, metadata: _metadata } = job.data;
 
-    console.log(`🔄 Worker ${workerId} processing job ${job.id}: ${url}`);
+    logger.debug(`Worker ${workerId} processing job ${job.id}: ${url}`);
 
     try {
       if (!this.browser) {
@@ -361,7 +362,6 @@ export class ClusterManager {
 
         // Get HTML content
         html = await page.content();
-
       } finally {
         await page.close();
       }
@@ -369,7 +369,7 @@ export class ClusterManager {
       const duration = Date.now() - startTime;
 
       const result: RenderJobResult = {
-        jobId: job.id,
+        jobId: job.id ?? '',
         url,
         success: true,
         html,
@@ -387,14 +387,13 @@ export class ClusterManager {
         },
       };
 
-      console.log(`✅ Worker ${workerId} completed job ${job.id} in ${duration}ms`);
+      logger.debug(`Worker ${workerId} completed job ${job.id} in ${duration}ms`);
       return result;
-
     } catch (error) {
       const duration = Date.now() - startTime;
 
       const result: RenderJobResult = {
-        jobId: job.id,
+        jobId: job.id ?? '',
         url,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -411,7 +410,7 @@ export class ClusterManager {
         },
       };
 
-      console.error(`❌ Worker ${workerId} failed job ${job.id}:`, error);
+      logger.error(`Worker ${workerId} failed job ${job.id}:`, error);
       return result;
     }
   }
@@ -426,7 +425,7 @@ export class ClusterManager {
     priority: number = 0
   ): Promise<Job<RenderJob, RenderJobResult> | null> {
     if (!this.queue) {
-      console.warn('⚠️  Queue not available, falling back to direct rendering');
+      logger.warn('Queue not available, falling back to direct rendering');
       return null;
     }
 
@@ -465,8 +464,8 @@ export class ClusterManager {
   async getStats(): Promise<ClusterStats> {
     const stats: ClusterStats = {
       workers: {
-        active: this.workers.filter(w => w.isRunning()).length,
-        idle: this.workers.filter(w => !w.isRunning()).length,
+        active: this.workers.filter((w) => w.isRunning()).length,
+        idle: this.workers.filter((w) => !w.isRunning()).length,
         total: this.workers.length,
       },
       jobs: {
@@ -484,16 +483,9 @@ export class ClusterManager {
       },
     };
 
-    // Convert arrays to counts
-    stats.jobs.waiting = (stats.jobs.waiting as any).length;
-    stats.jobs.active = (stats.jobs.active as any).length;
-    stats.jobs.completed = (stats.jobs.completed as any).length;
-    stats.jobs.failed = (stats.jobs.failed as any).length;
-    stats.jobs.delayed = (stats.jobs.delayed as any).length;
-
     // Calculate performance metrics
-    const completed = stats.jobs.completed as number;
-    const failed = stats.jobs.failed as number;
+    const completed = stats.jobs.completed;
+    const failed = stats.jobs.failed;
     const total = completed + failed;
 
     if (total > 0) {
@@ -509,7 +501,7 @@ export class ClusterManager {
   async pause(): Promise<void> {
     if (this.queue) {
       await this.queue.pause();
-      console.log('⏸️  Queue paused');
+      logger.info('Queue paused');
     }
   }
 
@@ -519,7 +511,7 @@ export class ClusterManager {
   async resume(): Promise<void> {
     if (this.queue) {
       await this.queue.resume();
-      console.log('▶️  Queue resumed');
+      logger.info('Queue resumed');
     }
   }
 
@@ -527,7 +519,7 @@ export class ClusterManager {
    * Graceful shutdown
    */
   async shutdown(): Promise<void> {
-    console.log('🛑 Shutting down Cluster Manager...');
+    logger.info('Shutting down Cluster Manager...');
 
     // Close workers
     for (const worker of this.workers) {
@@ -560,7 +552,7 @@ export class ClusterManager {
     }
 
     this.isInitialized = false;
-    console.log('✅ Cluster Manager shutdown complete');
+    logger.info('Cluster Manager shutdown complete');
   }
 
   /**

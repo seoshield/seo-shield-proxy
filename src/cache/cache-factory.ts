@@ -2,6 +2,9 @@ import { ICacheAdapter, CacheEntry, CacheStats } from './cache-interface';
 import { MemoryCache } from './memory-cache';
 import { RedisCache } from './redis-cache';
 import config from '../config';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('CacheFactory');
 
 /**
  * Async wrapper for Redis cache to match synchronous interface
@@ -44,7 +47,8 @@ class AsyncCacheWrapper implements ICacheAdapter {
     if (this.pendingFetches.has(key)) return;
     this.pendingFetches.add(key);
 
-    this.cache.getWithTTLAsync(key)
+    this.cache
+      .getWithTTLAsync(key)
       .then((entry) => {
         if (entry) {
           this.valueCache.set(key, { entry, timestamp: Date.now() });
@@ -139,7 +143,7 @@ export class CacheFactory {
     const cacheType = config.CACHE_TYPE || 'memory';
     const redisUrl = config.REDIS_URL || 'redis://localhost:6379';
 
-    console.log(`🏭 Cache factory: Creating ${cacheType} cache...`);
+    logger.info(`Creating ${cacheType} cache...`);
 
     if (cacheType === 'redis') {
       try {
@@ -159,16 +163,16 @@ export class CacheFactory {
         ]);
 
         if (ready) {
-          console.log('✅ Redis cache ready');
+          logger.info('Redis cache ready');
           return new AsyncCacheWrapper(redisCache);
         } else {
-          console.warn('⚠️  Redis connection timeout, falling back to memory cache');
+          logger.warn('Redis connection timeout, falling back to memory cache');
           await redisCache.close();
           return new MemoryCache();
         }
       } catch (error) {
-        console.error('❌ Redis cache creation failed:', (error as Error).message);
-        console.log('🔄 Falling back to memory cache');
+        logger.error('Redis cache creation failed:', (error as Error).message);
+        logger.info('Falling back to memory cache');
         return new MemoryCache();
       }
     }

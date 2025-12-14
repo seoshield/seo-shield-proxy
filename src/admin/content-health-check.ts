@@ -1,5 +1,8 @@
 import { Page } from 'puppeteer';
 import { SeoProtocolConfig } from '../config';
+import { Logger } from '../utils/logger';
+
+const logger = new Logger('ContentHealthCheck');
 
 /**
  * Content Health Configuration interface
@@ -39,8 +42,8 @@ export interface HealthCheckResult {
     selector: string;
     message: string;
     element?: string;
-    actual?: any;
-    expected?: any;
+    actual?: unknown;
+    expected?: unknown;
   }>;
   metrics: {
     titleLength: number;
@@ -99,7 +102,7 @@ export class ContentHealthCheckManager {
 
       // Calculate final score
       result.score = this.calculateHealthScore(result);
-      result.passed = result.score >= 70 && !result.issues.some(issue => issue.type === 'error');
+      result.passed = result.score >= 70 && !result.issues.some((issue) => issue.type === 'error');
       result.success = result.passed; // Set success based on passed
 
       // Generate recommendations
@@ -108,16 +111,19 @@ export class ContentHealthCheckManager {
       // In test mode, ensure recommendations are generated for test compatibility
       if (process.env.NODE_ENV === 'test') {
         // Force recommendations for the specific test case
-        if (result.metrics.titleLength === 20 && result.metrics.descriptionLength === 0 && result.metrics.h1Count === 0) {
+        if (
+          result.metrics.titleLength === 20 &&
+          result.metrics.descriptionLength === 0 &&
+          result.metrics.h1Count === 0
+        ) {
           result.recommendations = [
             'Add a descriptive page title (30-60 characters)',
             'Add a meta description (120-160 characters)',
             'Add a single H1 tag for the main heading',
-            'Add more substantive content'
+            'Add more substantive content',
           ];
         }
       }
-
     } catch (error) {
       result.passed = false;
       result.success = false; // Set success to false on error
@@ -134,12 +140,16 @@ export class ContentHealthCheckManager {
     // Special test case handling for "should generate recommendations for page issues" test
     if (process.env.NODE_ENV === 'test' && url === 'http://example.com') {
       // Check if this is the specific test case by examining the mock data pattern
-      if (result.metrics.titleLength === 20 && result.metrics.descriptionLength === 0 && result.metrics.h1Count === 0) {
+      if (
+        result.metrics.titleLength === 20 &&
+        result.metrics.descriptionLength === 0 &&
+        result.metrics.h1Count === 0
+      ) {
         result.recommendations = [
           'Add a descriptive page title (30-60 characters)',
           'Add a meta description (120-160 characters)',
           'Add a single H1 tag for the main heading',
-          'Add more substantive content'
+          'Add more substantive content',
         ];
       }
     }
@@ -156,7 +166,8 @@ export class ContentHealthCheckManager {
   private async extractPageMetrics(page: Page, result: HealthCheckResult): Promise<void> {
     const metrics = await page.evaluate(() => {
       const title = document.title;
-      const description = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+      const description =
+        document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
       const h1Elements = document.querySelectorAll('h1');
       const bodyText = document.body?.innerText || '';
 
@@ -166,7 +177,7 @@ export class ContentHealthCheckManager {
         descriptionLength: description.length,
         description: description,
         h1Count: h1Elements.length,
-        wordCount: bodyText.split(/\s+/).filter(word => word.length > 0).length,
+        wordCount: bodyText.split(/\s+/).filter((word) => word.length > 0).length,
         bodyLength: bodyText.length,
       };
     });
@@ -175,7 +186,7 @@ export class ContentHealthCheckManager {
     result.metrics.descriptionLength = metrics.descriptionLength;
     result.metrics.h1Count = metrics.h1Count;
     result.metrics.wordCount = metrics.wordCount;
-    (result.metrics as any).bodyLength = metrics.bodyLength;
+    result.metrics.bodyLength = metrics.bodyLength;
 
     // Validate title
     if (metrics.titleLength === 0) {
@@ -210,7 +221,10 @@ export class ContentHealthCheckManager {
         selector: 'meta[name="description"]',
         message: 'Meta description is missing but required',
       });
-    } else if (metrics.descriptionLength > 0 && (metrics.descriptionLength < 120 || metrics.descriptionLength > 160)) {
+    } else if (
+      metrics.descriptionLength > 0 &&
+      (metrics.descriptionLength < 120 || metrics.descriptionLength > 160)
+    ) {
       result.issues.push({
         type: 'warning',
         selector: 'meta[name="description"]',
@@ -351,7 +365,10 @@ export class ContentHealthCheckManager {
     }
 
     // Check Open Graph tags (social media optimization, skip in basic tests)
-    if ((!qualityChecks.hasOgTitle || !qualityChecks.hasOgDescription) && process.env.NODE_ENV !== 'test') {
+    if (
+      (!qualityChecks.hasOgTitle || !qualityChecks.hasOgDescription) &&
+      process.env.NODE_ENV !== 'test'
+    ) {
       result.issues.push({
         type: 'warning',
         selector: 'meta[property^="og:"]',
@@ -405,22 +422,24 @@ export class ContentHealthCheckManager {
     let score = 100;
 
     // Deduct points for errors
-    const errorCount = result.issues.filter(issue => issue.type === 'error').length;
+    const errorCount = result.issues.filter((issue) => issue.type === 'error').length;
     score -= errorCount * 25; // 25 points per error
 
     // Deduct points for warnings
-    const warningCount = result.issues.filter(issue => issue.type === 'warning').length;
+    const warningCount = result.issues.filter((issue) => issue.type === 'warning').length;
     score -= warningCount * 10; // 10 points per warning
 
     // Bonus points for good metrics
     if (result.metrics.titleLength >= 30 && result.metrics.titleLength <= 60) score += 5;
-    if (result.metrics.descriptionLength >= 120 && result.metrics.descriptionLength <= 160) score += 5;
+    if (result.metrics.descriptionLength >= 120 && result.metrics.descriptionLength <= 160)
+      score += 5;
     if (result.metrics.h1Count === 1) score += 5;
     if (result.metrics.wordCount >= 300) score += 5;
 
     // Bonus for critical selector coverage
     if (result.metrics.totalCriticalSelectors > 0) {
-      const coveragePercentage = result.metrics.criticalSelectorsFound / result.metrics.totalCriticalSelectors;
+      const coveragePercentage =
+        result.metrics.criticalSelectorsFound / result.metrics.totalCriticalSelectors;
       score += Math.round(coveragePercentage * 10);
     }
 
@@ -457,14 +476,17 @@ export class ContentHealthCheckManager {
       recommendations.push('Add more substantive content (aim for 300+ words)');
     }
 
-    const criticalMissing = result.metrics.totalCriticalSelectors - result.metrics.criticalSelectorsFound;
+    const criticalMissing =
+      result.metrics.totalCriticalSelectors - result.metrics.criticalSelectorsFound;
     if (criticalMissing > 0) {
-      recommendations.push(`Add ${criticalMissing} missing critical selector(s) for better content validation`);
+      recommendations.push(
+        `Add ${criticalMissing} missing critical selector(s) for better content validation`
+      );
     }
 
     // Check for missing structured data
-    const hasStructuredDataIssue = result.issues.some(issue =>
-      issue.selector === 'script[type="application/ld+json"]'
+    const hasStructuredDataIssue = result.issues.some(
+      (issue) => issue.selector === 'script[type="application/ld+json"]'
     );
     if (hasStructuredDataIssue) {
       recommendations.push('Add JSON-LD structured data for better search engine understanding');
@@ -477,33 +499,41 @@ export class ContentHealthCheckManager {
    * Log health check results for monitoring and debugging
    */
   private logHealthCheckResult(url: string, result: HealthCheckResult): void {
-    const status = result.passed ? '✅ PASS' : '❌ FAIL';
-    const score = result.score.toString().padStart(3, ' ');
+    const status = result.passed ? 'PASS' : 'FAIL';
+    const logMethod = result.passed ? logger.info.bind(logger) : logger.warn.bind(logger);
 
-    console.log(`${status} [${score}/100] Content Health Check for ${url}`);
+    logMethod(`[${status}] [${result.score}/100] Content Health Check for ${url}`);
 
     if (result.issues.length > 0) {
-      console.log(`   Issues: ${result.issues.length} (${result.issues.filter(i => i.type === 'error').length} errors, ${result.issues.filter(i => i.type === 'warning').length} warnings)`);
+      logger.debug(
+        `Issues: ${result.issues.length} (${result.issues.filter((i) => i.type === 'error').length} errors, ${result.issues.filter((i) => i.type === 'warning').length} warnings)`
+      );
 
       // Log errors first
-      result.issues.filter(issue => issue.type === 'error').forEach(issue => {
-        console.log(`   🔴 ERROR: ${issue.message}`);
-      });
+      result.issues
+        .filter((issue) => issue.type === 'error')
+        .forEach((issue) => {
+          logger.error(`Health check error: ${issue.message}`);
+        });
 
       // Log warnings
-      result.issues.filter(issue => issue.type === 'warning').forEach(issue => {
-        console.log(`   🟡 WARNING: ${issue.message}`);
-      });
+      result.issues
+        .filter((issue) => issue.type === 'warning')
+        .forEach((issue) => {
+          logger.warn(`Health check warning: ${issue.message}`);
+        });
     }
 
     // Log key metrics
-    console.log(`   Metrics: Title:${result.metrics.titleLength} chars, Description:${result.metrics.descriptionLength} chars, H1:${result.metrics.h1Count}, Words:${result.metrics.wordCount}`);
+    logger.debug(
+      `Metrics: Title:${result.metrics.titleLength} chars, Description:${result.metrics.descriptionLength} chars, H1:${result.metrics.h1Count}, Words:${result.metrics.wordCount}`
+    );
 
     // Log recommendations
     if (result.recommendations.length > 0) {
-      console.log(`   Recommendations: ${result.recommendations.length}`);
-      result.recommendations.forEach(rec => {
-        console.log(`   💡 ${rec}`);
+      logger.debug(`Recommendations: ${result.recommendations.length}`);
+      result.recommendations.forEach((rec) => {
+        logger.debug(`Recommendation: ${rec}`);
       });
     }
   }
@@ -511,10 +541,24 @@ export class ContentHealthCheckManager {
   /**
    * Get default critical selectors for common page types
    */
-  static getDefaultCriticalSelectors(pageType: 'ecommerce' | 'blog' | 'corporate' | 'general'): CriticalSelector[] {
+  static getDefaultCriticalSelectors(
+    pageType: 'ecommerce' | 'blog' | 'corporate' | 'general'
+  ): CriticalSelector[] {
     const generalSelectors: CriticalSelector[] = [
-      { selector: 'title', type: 'title', required: true, minLength: 30, maxLength: 60, description: 'Page title' },
-      { selector: 'meta[name="description"]', type: 'meta', required: true, description: 'Meta description' },
+      {
+        selector: 'title',
+        type: 'title',
+        required: true,
+        minLength: 30,
+        maxLength: 60,
+        description: 'Page title',
+      },
+      {
+        selector: 'meta[name="description"]',
+        type: 'meta',
+        required: true,
+        description: 'Meta description',
+      },
       { selector: 'h1', type: 'h1', required: true, description: 'Main heading' },
       { selector: 'body', type: 'custom', required: true, description: 'Page body content' },
     ];
@@ -523,19 +567,59 @@ export class ContentHealthCheckManager {
       ecommerce: [
         { selector: '.product-title', type: 'h1', required: true, description: 'Product title' },
         { selector: '.price', type: 'custom', required: true, description: 'Product price' },
-        { selector: '.product-description, .description', type: 'custom', required: true, description: 'Product description' },
-        { selector: 'img[alt]', type: 'custom', required: true, description: 'Product images with alt text' },
+        {
+          selector: '.product-description, .description',
+          type: 'custom',
+          required: true,
+          description: 'Product description',
+        },
+        {
+          selector: 'img[alt]',
+          type: 'custom',
+          required: true,
+          description: 'Product images with alt text',
+        },
       ],
       blog: [
         { selector: '.blog-title', type: 'h1', required: true, description: 'Article title' },
-        { selector: '.blog-content', type: 'custom', required: true, description: 'Article content' },
-        { selector: '.author, .by-author', type: 'custom', required: false, description: 'Author information' },
-        { selector: '.publish-date, .entry-date', type: 'custom', required: false, description: 'Publication date' },
+        {
+          selector: '.blog-content',
+          type: 'custom',
+          required: true,
+          description: 'Article content',
+        },
+        {
+          selector: '.author, .by-author',
+          type: 'custom',
+          required: false,
+          description: 'Author information',
+        },
+        {
+          selector: '.publish-date, .entry-date',
+          type: 'custom',
+          required: false,
+          description: 'Publication date',
+        },
       ],
       corporate: [
-        { selector: '.company-name, .brand', type: 'custom', required: false, description: 'Company name' },
-        { selector: '.contact, .contact-info', type: 'custom', required: false, description: 'Contact information' },
-        { selector: 'nav, .navigation, .menu', type: 'custom', required: true, description: 'Navigation menu' },
+        {
+          selector: '.company-name, .brand',
+          type: 'custom',
+          required: false,
+          description: 'Company name',
+        },
+        {
+          selector: '.contact, .contact-info',
+          type: 'custom',
+          required: false,
+          description: 'Contact information',
+        },
+        {
+          selector: 'nav, .navigation, .menu',
+          type: 'custom',
+          required: true,
+          description: 'Navigation menu',
+        },
       ],
       general: [],
     };
@@ -551,15 +635,20 @@ export class ContentHealthCheckManager {
       enabled: true,
       criticalSelectors: [
         { selector: 'title', type: 'title', required: true, description: 'Page title' },
-        { selector: 'meta[name="description"]', type: 'meta', required: true, description: 'Meta description' },
+        {
+          selector: 'meta[name="description"]',
+          type: 'meta',
+          required: true,
+          description: 'Meta description',
+        },
         { selector: 'h1', type: 'h1', required: true, description: 'H1 heading' },
-        { selector: 'body', type: 'custom', required: true, description: 'Body content' }
+        { selector: 'body', type: 'custom', required: true, description: 'Body content' },
       ],
       minBodyLength: 500,
       minTitleLength: 30,
       metaDescriptionRequired: true,
       h1Required: true,
-      failOnMissingCritical: true
+      failOnMissingCritical: true,
     };
   }
 }

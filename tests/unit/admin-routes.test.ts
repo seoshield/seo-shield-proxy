@@ -5,7 +5,8 @@ const mockRouter = {
   get: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
-  delete: vi.fn()
+  delete: vi.fn(),
+  options: vi.fn()
 };
 
 vi.mock('express', () => ({

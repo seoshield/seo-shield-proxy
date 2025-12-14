@@ -1,5 +1,9 @@
 # SEO Shield Proxy
 
+[![Test Coverage](https://img.shields.io/badge/coverage-50%25-yellow.svg)](./coverage)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
+
 Production-ready reverse proxy that transforms Single Page Applications (SPAs) into SEO-optimized websites. Provides intelligent bot detection, server-side rendering via Puppeteer, smart caching, and a comprehensive admin dashboard.
 
 ## Features

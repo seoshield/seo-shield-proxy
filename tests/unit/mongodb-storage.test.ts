@@ -92,7 +92,7 @@ describe('MongoStorage Traffic Methods', () => {
     };
 
     await storage.storeTrafficMetric(metric);
-    expect(mockDb.collection).toHaveBeenCalledWith('traffic');
+    expect(mockDb.collection).toHaveBeenCalledWith('traffic_metrics');
   });
 
   it('should get traffic metrics with default limit', async () => {
